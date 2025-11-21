@@ -1,0 +1,64 @@
+import { Link, useLocation } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { FileText, Home, Briefcase, Upload, Settings } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+export function Navigation() {
+  const location = useLocation();
+  const isAuth = location.pathname === '/login' || location.pathname === '/signup';
+  
+  if (isAuth) return null;
+
+  const navItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: Home },
+    { path: '/upload-cv', label: 'Upload CV', icon: Upload },
+    { path: '/jobs', label: 'Jobs', icon: Briefcase },
+  ];
+
+  return (
+    <nav className="border-b border-border bg-card">
+      <div className="container mx-auto px-4 py-4">
+        <div className="flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent">
+              <FileText className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              TailorJob.ai
+            </span>
+          </Link>
+
+          <div className="hidden md:flex items-center gap-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname.startsWith(item.path);
+              return (
+                <Link key={item.path} to={item.path}>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      'gap-2',
+                      isActive && 'bg-primary-light text-primary'
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Button>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link to="/settings">
+              <Button variant="ghost" size="icon">
+                <Settings className="h-5 w-5" />
+              </Button>
+            </Link>
+            <Button variant="outline">Sign Out</Button>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
