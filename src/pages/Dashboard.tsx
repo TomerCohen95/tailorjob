@@ -1,11 +1,33 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
 import { FileText, Plus, Briefcase, Upload } from 'lucide-react';
 import { mockJobs } from '@/lib/mockData';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if user is logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate('/login');
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) {
+        navigate('/login');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
