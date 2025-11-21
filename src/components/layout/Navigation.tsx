@@ -1,13 +1,30 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { FileText, Home, Briefcase, Upload, Settings } from 'lucide-react';
+import { FileText, Home, Briefcase, Upload, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export function Navigation() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const isAuth = location.pathname === '/login' || location.pathname === '/signup';
   
   if (isAuth) return null;
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate('/login');
+    } catch (error: any) {
+      toast({
+        title: "Error signing out",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: Home },
@@ -50,12 +67,14 @@ export function Navigation() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link to="/settings">
-              <Button variant="ghost" size="icon">
-                <Settings className="h-5 w-5" />
-              </Button>
-            </Link>
-            <Button variant="outline">Sign Out</Button>
+            <Button 
+              variant="outline" 
+              onClick={handleSignOut}
+              className="gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </Button>
           </div>
         </div>
       </div>
