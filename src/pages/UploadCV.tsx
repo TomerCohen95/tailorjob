@@ -6,6 +6,7 @@ import { Navigation } from '@/components/layout/Navigation';
 import { FileUpload } from '@/components/ui/file-upload';
 import { ArrowRight, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { cvAPI } from '@/lib/api';
 
 export default function UploadCV() {
   const navigate = useNavigate();
@@ -20,12 +21,24 @@ export default function UploadCV() {
     if (!file) return;
 
     setIsUploading(true);
-    // Mock upload delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    toast.success('CV uploaded successfully!');
-    setIsUploading(false);
-    navigate('/cv-preview');
+    try {
+      const result = await cvAPI.upload(file);
+      
+      toast.success('CV uploaded successfully!', {
+        description: `${result.filename} is being parsed...`
+      });
+      
+      // Redirect to dashboard after successful upload
+      navigate('/dashboard');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to upload CV';
+      toast.error('Upload failed', {
+        description: message
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (

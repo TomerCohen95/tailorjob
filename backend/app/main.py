@@ -5,13 +5,15 @@ import asyncio
 
 from app.config import settings
 from app.api.routes import cv, jobs, tailor
+from app.workers.cv_worker import CVWorker
 
-# Placeholder for workers - we'll add this later
+# Initialize worker
+cv_worker = CVWorker()
+
 async def start_background_workers():
     """Start background workers for processing jobs"""
-    print("✓ Background workers started (placeholder)")
-    # We'll implement workers in next phase
-    await asyncio.sleep(float('inf'))
+    print("✓ Starting CV parser worker...")
+    await cv_worker.start()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

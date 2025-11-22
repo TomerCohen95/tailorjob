@@ -1,11 +1,11 @@
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-dotenv==1.0.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
+fastapi==0.115.5
+uvicorn[standard]==0.34.0
+python-dotenv==1.0.1
+pydantic>=2.11.7
+pydantic-settings>=2.7.1
 
 # Supabase
-supabase==2.3.4
+supabase==2.24.0
 
 # Redis
 redis==5.0.1
@@ -22,5 +22,5 @@ python-multipart==0.0.6
 weasyprint==60.2
 
 # Utilities
-httpx==0.25.2
+httpx>=0.26,<0.29
 python-jose[cryptography]==3.3.0

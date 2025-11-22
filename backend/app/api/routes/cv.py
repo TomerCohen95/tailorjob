@@ -75,7 +75,7 @@ async def get_parse_status(
     status = await queue_service.get_job_status(job_id)
     return status
 
-@router.get("/")
+@router.get("/list")
 async def list_cvs(user = Depends(get_current_user)):
     """List all CVs for the current user"""
     result = supabase.table("cvs")\

@@ -8,10 +8,17 @@ class QueueService:
     """Service for managing background job queues using Redis"""
     
     def __init__(self):
-        self.redis = redis.from_url(
-            settings.UPSTASH_REDIS_URL,
-            decode_responses=True
-        )
+        # Redis is optional - if not configured, queue operations will be no-ops
+        self.redis = None
+        if settings.UPSTASH_REDIS_URL:
+            try:
+                self.redis = redis.from_url(
+                    settings.UPSTASH_REDIS_URL,
+                    decode_responses=True,
+                    ssl_cert_reqs=None  # Disable SSL verification for development
+                )
+            except Exception as e:
+                print(f"Warning: Could not connect to Redis: {e}")
         
         # Queue names
         self.CV_PARSE_QUEUE = "queue:cv-parse"
@@ -21,16 +28,23 @@ class QueueService:
         """Add a job to the queue"""
         job_id = data.get("id", str(uuid.uuid4()))
         
-        # Add job to queue (Redis list)
-        await self.redis.lpush(queue_name, json.dumps(data))
-        
-        # Set initial job status with 1 hour TTL
-        await self.redis.setex(f"job:{job_id}:status", 3600, "queued")
+        if self.redis:
+            # Add job to queue (Redis list)
+            await self.redis.lpush(queue_name, json.dumps(data))
+            
+            # Set initial job status with 1 hour TTL
+            await self.redis.setex(f"job:{job_id}:status", 3600, "queued")
+        else:
+            # Redis not configured - log warning
+            print(f"Warning: Redis not configured. Job {job_id} not queued.")
         
         return job_id
     
     async def dequeue(self, queue_name: str, timeout: int = 5) -> Optional[Dict[str, Any]]:
         """Get a job from the queue (blocking operation)"""
+        if not self.redis:
+            return None
+            
         result = await self.redis.brpop(queue_name, timeout=timeout)
         
         if result:
@@ -41,6 +55,9 @@ class QueueService:
     
     async def set_job_status(self, job_id: str, status: str, result: Any = None):
         """Update job status and optionally store result"""
+        if not self.redis:
+            return
+            
         await self.redis.setex(f"job:{job_id}:status", 3600, status)
         
         if result:
@@ -52,6 +69,12 @@ class QueueService:
     
     async def get_job_status(self, job_id: str) -> Dict[str, Any]:
         """Get the current status of a job"""
+        if not self.redis:
+            return {
+                "status": "unavailable",
+                "result": None
+            }
+            
         status = await self.redis.get(f"job:{job_id}:status")
         result = await self.redis.get(f"job:{job_id}:result")
         

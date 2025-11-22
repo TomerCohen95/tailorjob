@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Navigation } from '@/components/layout/Navigation';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import { jobsAPI } from '@/lib/api';
 
 export default function AddJob() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function AddJob() {
     company: '',
     description: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,11 +27,29 @@ export default function AddJob() {
       return;
     }
 
-    // Mock save delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    setIsSubmitting(true);
     
-    toast.success('Job saved successfully!');
-    navigate('/jobs/1/tailor'); // Navigate to tailor page with mock job ID
+    try {
+      const job = await jobsAPI.create({
+        title: formData.title,
+        company: formData.company,
+        description: formData.description
+      });
+      
+      toast.success('Job saved successfully!', {
+        description: `${job.title} at ${job.company}`
+      });
+      
+      // Navigate to tailor page with the actual job ID
+      navigate(`/jobs/${job.id}/tailor`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save job';
+      toast.error('Save failed', {
+        description: message
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -109,10 +129,11 @@ export default function AddJob() {
                   </Button>
                   <Button
                     type="submit"
+                    disabled={isSubmitting}
                     className="flex-1 bg-gradient-to-r from-primary to-accent hover:opacity-90"
                   >
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Tailor My CV
+                    {isSubmitting ? 'Saving...' : 'Tailor My CV'}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
