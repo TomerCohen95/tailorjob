@@ -36,15 +36,15 @@ export default function Landing() {
             <Sparkles className="h-4 w-4" />
             AI-Powered CV Tailoring
           </div>
-          
+
           <h1 className="text-5xl md:text-7xl font-bold mb-6 text-foreground leading-tight">
             Tailor your CV for every job — <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">instantly</span>
           </h1>
-          
+
           <p className="text-xl text-foreground/70 mb-8 max-w-2xl mx-auto">
             Upload your CV, paste any job description, and let AI create a perfectly tailored resume that highlights your most relevant experience.
           </p>
-          
+
           <div className="flex gap-4 justify-center flex-wrap">
             <Link to="/signup">
               <Button size="lg" className="bg-gradient-to-r from-primary to-accent hover:opacity-90 text-lg px-8 shadow-glow">
@@ -58,14 +58,15 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* Screenshot Placeholder */}
+        {/* Product Screenshot */}
         <div className="mt-16 max-w-6xl mx-auto">
           <div className="rounded-xl border border-border bg-card shadow-2xl p-8 animate-fade-in">
-            <div className="aspect-video bg-gradient-to-br from-primary/5 via-accent/5 to-primary/5 rounded-lg flex items-center justify-center border border-border">
-              <div className="text-center">
-                <FileText className="h-20 w-20 text-primary mx-auto mb-4" />
-                <p className="text-lg text-foreground/60">Product Screenshot</p>
-              </div>
+            <div className="rounded-lg overflow-hidden border border-border">
+              <img
+                src="/product-demo.png"
+                alt="TailorJob.ai product interface showing CV tailoring features"
+                className="w-full h-auto"
+              />
             </div>
           </div>
         </div>

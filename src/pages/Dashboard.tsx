@@ -15,7 +15,7 @@ export default function Dashboard() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         navigate('/login');
-      }
+      } 
     });
 
     // Listen for auth changes
