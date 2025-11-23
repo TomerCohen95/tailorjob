@@ -3,6 +3,7 @@ from app.api.deps import get_current_user
 from app.services.storage import storage_service
 from app.services.queue import queue_service
 from app.utils.supabase_client import supabase
+import hashlib
 
 router = APIRouter()
 
@@ -37,33 +38,91 @@ async def upload_cv(
     # Read file content
     content = await file.read()
     
-    # Upload to storage
+    # Compute file hash for duplicate detection
+    file_hash = hashlib.sha256(content).hexdigest()
+    
+    # Check if this exact file already exists for this user
+    existing_cv = supabase.table("cvs")\
+        .select("*")\
+        .eq("user_id", user.id)\
+        .eq("file_hash", file_hash)\
+        .execute()
+    
+    if existing_cv.data:
+        # File already exists
+        existing = existing_cv.data[0]
+        existing_status = existing["status"]
+        print(f"📋 Duplicate detected: CV {existing['id'][:8]}... status={existing_status}")
+        
+        # If the existing CV hasn't been parsed yet, enqueue a parsing job
+        if existing_status in ["uploaded", "error"]:
+            print(f"🔄 Re-enqueueing parse job for existing CV: {existing['id']}")
+            try:
+                job_id = await queue_service.enqueue_cv_parse(existing["id"], user.id)
+                print(f"✅ Job enqueued with ID: {job_id}")
+                message = "CV already exists, re-parsing initiated"
+            except Exception as e:
+                print(f"⚠️  Queue error (non-fatal): {str(e)}")
+                job_id = None
+                message = "CV already exists. Re-parsing will start when worker reconnects."
+            
+            return {
+                "cv_id": existing["id"],
+                "job_id": job_id,
+                "status": "uploaded",
+                "message": message
+            }
+        
+        # CV already parsed successfully - offer to re-parse
+        print(f"⚠️  CV already parsed. Returning duplicate response.")
+        return {
+            "cv_id": existing["id"],
+            "status": "duplicate",
+            "message": "This CV already exists and is parsed",
+            "existing_cv": {
+                "id": existing["id"],
+                "original_filename": existing["original_filename"],
+                "created_at": existing["created_at"],
+                "status": existing["status"]
+            }
+        }
+    
+    # Upload to storage (new file)
     file_path = await storage_service.upload_cv(
         content,
         file.filename,
         user.id
     )
     
-    # Create database record
+    # Create database record with file hash
     result = supabase.table("cvs").insert({
         "user_id": user.id,
         "original_filename": file.filename,
         "file_path": file_path,
         "file_size": file.size,
         "mime_type": file.content_type,
-        "status": "uploaded"
+        "status": "uploaded",
+        "file_hash": file_hash
     }).execute()
     
     cv_id = result.data[0]["id"]
     
-    # Enqueue parsing job
-    job_id = await queue_service.enqueue_cv_parse(cv_id, user.id)
+    # Enqueue parsing job with error handling
+    print(f"🔄 Enqueueing CV parse job for CV: {cv_id}, user: {user.id}")
+    try:
+        job_id = await queue_service.enqueue_cv_parse(cv_id, user.id)
+        print(f"✅ Job enqueued with ID: {job_id}")
+        message = "CV uploaded successfully, parsing started"
+    except Exception as e:
+        print(f"⚠️  Queue error (non-fatal): {str(e)}")
+        job_id = None
+        message = "CV uploaded successfully. Parsing will start when worker reconnects."
     
     return {
         "cv_id": cv_id,
         "job_id": job_id,
         "status": "uploaded",
-        "message": "CV uploaded successfully, parsing started"
+        "message": message
     }
 
 @router.get("/status/{job_id}")
@@ -109,6 +168,37 @@ async def get_cv(cv_id: str, user = Depends(get_current_user)):
     return {
         "cv": cv_result.data,
         "sections": sections_result.data[0] if sections_result.data else None
+    }
+
+@router.post("/{cv_id}/reparse")
+async def reparse_cv(cv_id: str, user = Depends(get_current_user)):
+    """Manually trigger re-parsing of an existing CV"""
+    # Verify CV exists and belongs to user
+    cv_result = supabase.table("cvs")\
+        .select("*")\
+        .eq("id", cv_id)\
+        .eq("user_id", user.id)\
+        .single()\
+        .execute()
+    
+    if not cv_result.data:
+        raise HTTPException(status_code=404, detail="CV not found")
+    
+    # Enqueue parsing job
+    print(f"🔄 Manual re-parse requested for CV: {cv_id}")
+    job_id = await queue_service.enqueue_cv_parse(cv_id, user.id)
+    print(f"✅ Job enqueued with ID: {job_id}")
+    
+    # Update status to uploaded to trigger re-parsing
+    supabase.table("cvs").update({
+        "status": "uploaded"
+    }).eq("id", cv_id).execute()
+    
+    return {
+        "cv_id": cv_id,
+        "job_id": job_id,
+        "status": "uploaded",
+        "message": "Re-parsing initiated"
     }
 
 @router.delete("/{cv_id}")

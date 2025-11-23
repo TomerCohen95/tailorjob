@@ -13,7 +13,7 @@ class CVParserService:
         if settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_KEY:
             self.client = AzureOpenAI(
                 api_key=settings.AZURE_OPENAI_KEY,
-                api_version="2024-02-15-preview",
+                api_version="2024-02-01",
                 azure_endpoint=settings.AZURE_OPENAI_ENDPOINT
             )
     
@@ -74,7 +74,7 @@ CV Text:
 JSON Response:"""
 
             response = self.client.chat.completions.create(
-                model="gpt-4o",  # or your deployed model name
+                model=settings.AZURE_OPENAI_DEPLOYMENT,
                 messages=[
                     {"role": "system", "content": "You are a CV parser that returns only valid JSON."},
                     {"role": "user", "content": prompt}

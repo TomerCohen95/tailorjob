@@ -1,11 +1,13 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.utils.supabase_client import supabase
+from typing import Optional
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
     """
     Verify Supabase JWT token and return the authenticated user.
@@ -15,7 +17,21 @@ async def get_current_user(
     2. Validates it with Supabase Auth
     3. Returns the user object if valid
     4. Raises 401 if invalid
+    
+    Note: OPTIONS requests are allowed without authentication for CORS preflight.
     """
+    # Allow OPTIONS requests without authentication (for CORS preflight)
+    if request.method == "OPTIONS":
+        return None
+    
+    # Require authentication for other methods
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     token = credentials.credentials
     
     try:

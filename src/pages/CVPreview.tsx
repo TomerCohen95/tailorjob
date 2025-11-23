@@ -3,10 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Briefcase, GraduationCap, Award, Loader2 } from 'lucide-react';
+import { ArrowRight, Briefcase, GraduationCap, Award, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface CVSections {
   summary: string;
@@ -21,6 +22,8 @@ export default function CVPreview() {
   const cvId = searchParams.get('cvId');
   const [sections, setSections] = useState<CVSections | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cvStatus, setCvStatus] = useState<string>('');
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const fetchCVData = async () => {
@@ -31,6 +34,8 @@ export default function CVPreview() {
           if (cvs.length > 0) {
             const latestCV = cvs[0];
             const data = await apiClient.getCV(latestCV.id);
+            setCvStatus(data.cv?.status || 'unknown');
+            
             if (data.sections) {
               // Parse JSON strings from database
               setSections({
@@ -53,6 +58,8 @@ export default function CVPreview() {
 
       try {
         const data = await apiClient.getCV(cvId);
+        setCvStatus(data.cv?.status || 'unknown');
+        
         if (data.sections) {
           // Parse JSON strings from database
           setSections({
@@ -73,6 +80,43 @@ export default function CVPreview() {
 
     fetchCVData();
   }, [cvId]);
+
+  // Poll for updates when CV is being parsed
+  useEffect(() => {
+    if (cvStatus === 'uploaded' || cvStatus === 'parsing') {
+      const interval = setInterval(async () => {
+        try {
+          const targetCvId = cvId || (await apiClient.getCVs())[0]?.id;
+          if (targetCvId) {
+            const data = await apiClient.getCV(targetCvId);
+            const newStatus = data.cv?.status || 'unknown';
+            setCvStatus(newStatus);
+            
+            // If parsing completed, update sections and stop polling
+            if (newStatus === 'parsed' && data.sections) {
+              setSections({
+                summary: data.sections.summary || 'No summary available',
+                skills: JSON.parse(data.sections.skills || '[]'),
+                experience: JSON.parse(data.sections.experience || '[]'),
+                education: JSON.parse(data.sections.education || '[]'),
+                certifications: JSON.parse(data.sections.certifications || '[]')
+              });
+              toast.success('CV parsing completed!');
+              clearInterval(interval);
+            }
+          }
+        } catch (error) {
+          console.error('Error polling CV status:', error);
+        }
+      }, 3000); // Poll every 3 seconds
+
+      setPollingInterval(interval);
+
+      return () => {
+        clearInterval(interval);
+      };
+    }
+  }, [cvStatus, cvId]);
 
   if (loading) {
     return (
@@ -105,6 +149,34 @@ export default function CVPreview() {
     );
   }
 
+  const renderStatusBadge = () => {
+    switch (cvStatus) {
+      case 'uploaded':
+      case 'parsing':
+        return (
+          <Badge variant="outline" className="border-yellow-500 text-yellow-700 bg-yellow-50">
+            <Clock className="h-3 w-3 mr-1 animate-pulse" />
+            Parsing in progress...
+          </Badge>
+        );
+      case 'parsed':
+        return (
+          <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Parsing complete
+          </Badge>
+        );
+      case 'error':
+        return (
+          <Badge variant="destructive">
+            Parsing failed
+          </Badge>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -113,16 +185,31 @@ export default function CVPreview() {
         <div className="max-w-4xl mx-auto">
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Parsed CV Preview</h1>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-3xl font-bold text-foreground">Parsed CV Preview</h1>
+                {renderStatusBadge()}
+              </div>
               <p className="text-muted-foreground">Review your extracted information</p>
             </div>
             <Link to="/jobs/add">
-              <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
+              <Button
+                className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                disabled={cvStatus !== 'parsed'}
+              >
                 Continue to Add Job
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>
+
+          {(cvStatus === 'uploaded' || cvStatus === 'parsing') && (
+            <Alert className="mb-6 border-yellow-500 bg-yellow-50">
+              <Loader2 className="h-4 w-4 animate-spin text-yellow-700" />
+              <AlertDescription className="text-yellow-700">
+                Your CV is being parsed with AI. This usually takes 10-30 seconds. The page will update automatically when complete.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="space-y-6">
             {/* Summary */}

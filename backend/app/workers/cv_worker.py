@@ -48,14 +48,32 @@ class CVWorker:
             parsed_data = await cv_parser_service.parse_cv_file(file_content, filename)
             
             # Save parsed sections to database
-            supabase.table("cv_sections").upsert({
+            # Check if sections already exist
+            existing_sections = supabase.table("cv_sections")\
+                .select("id")\
+                .eq("cv_id", cv_id)\
+                .execute()
+            
+            sections_data = {
                 "cv_id": cv_id,
                 "summary": parsed_data.get("summary", ""),
                 "skills": json.dumps(parsed_data.get("skills", [])),
                 "experience": json.dumps(parsed_data.get("experience", [])),
                 "education": json.dumps(parsed_data.get("education", [])),
                 "certifications": json.dumps(parsed_data.get("certifications", []))
-            }).execute()
+            }
+            
+            if existing_sections.data:
+                # Update existing sections
+                supabase.table("cv_sections")\
+                    .update(sections_data)\
+                    .eq("cv_id", cv_id)\
+                    .execute()
+                print(f"📝 Updated existing CV sections")
+            else:
+                # Insert new sections
+                supabase.table("cv_sections").insert(sections_data).execute()
+                print(f"📝 Created new CV sections")
             
             # Update CV status to 'parsed'
             supabase.table("cvs").update({
@@ -78,20 +96,26 @@ class CVWorker:
         """Main worker loop - processes jobs from the queue"""
         self.running = True
         print("🚀 CV Worker started")
+        print(f"📡 Listening on queue: {queue_service.CV_PARSE_QUEUE}")
         
         while self.running:
             try:
                 # Try to get a job from the queue
+                print("🔍 Checking for jobs...")
                 job = await queue_service.dequeue(queue_service.CV_PARSE_QUEUE)
                 
                 if job:
+                    print(f"📬 Job received: {job}")
                     await self.process_cv_parse_job(job)
                 else:
                     # No jobs available, wait a bit
+                    print("💤 No jobs, sleeping for 5s...")
                     await asyncio.sleep(5)
                     
             except Exception as e:
                 print(f"❌ Worker error: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 await asyncio.sleep(5)
     
     async def start(self):

@@ -147,7 +147,7 @@ export const jobsAPI = {
    * Create a new job posting
    */
   async create(data: CreateJobInput): Promise<Job> {
-    return fetchAPI('/jobs', {
+    return fetchAPI('/jobs/', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -157,7 +157,7 @@ export const jobsAPI = {
    * List all jobs for the current user
    */
   async list(): Promise<Job[]> {
-    return fetchAPI('/jobs');
+    return fetchAPI('/jobs/');
   },
 
   /**
