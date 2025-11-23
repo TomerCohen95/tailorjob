@@ -59,6 +59,23 @@ export interface CV {
   updated_at: string;
 }
 
+export interface CVSections {
+  id: string;
+  cv_id: string;
+  summary: string;
+  skills: string;
+  experience: string;
+  education: string;
+  certifications: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CVWithSections {
+  cv: CV;
+  sections: CVSections | null;
+}
+
 export const cvAPI = {
   /**
    * Upload a CV file
@@ -81,9 +98,9 @@ export const cvAPI = {
   },
 
   /**
-   * Get a specific CV by ID
+   * Get a specific CV by ID with its parsed sections
    */
-  async get(cvId: string): Promise<CV> {
+  async get(cvId: string): Promise<CVWithSections> {
     return fetchAPI(`/cv/${cvId}`);
   },
 
@@ -263,4 +280,33 @@ export const healthAPI = {
     const response = await fetch(`${API_BASE_URL.replace('/api', '')}/health`);
     return response.json();
   },
+};
+
+// ============================================================================
+// Unified API Client Export
+// ============================================================================
+
+export const apiClient = {
+  // CV operations
+  getCVs: cvAPI.list,
+  getCV: cvAPI.get,
+  uploadCV: cvAPI.upload,
+  deleteCV: cvAPI.delete,
+  
+  // Job operations
+  getJobs: jobsAPI.list,
+  getJob: jobsAPI.get,
+  createJob: jobsAPI.create,
+  updateJob: jobsAPI.update,
+  deleteJob: jobsAPI.delete,
+  
+  // Tailor operations
+  tailorCV: tailorAPI.tailor,
+  getTailoredCV: tailorAPI.get,
+  getTailoringStatus: tailorAPI.getStatus,
+  sendChatMessage: tailorAPI.sendMessage,
+  getChatHistory: tailorAPI.getChatHistory,
+  
+  // Health check
+  healthCheck: healthAPI.check,
 };

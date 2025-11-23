@@ -1,12 +1,110 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Briefcase, GraduationCap, Award } from 'lucide-react';
-import { mockParsedCV } from '@/lib/mockData';
+import { ArrowRight, Briefcase, GraduationCap, Award, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { apiClient } from '@/lib/api';
+import { toast } from 'sonner';
+
+interface CVSections {
+  summary: string;
+  skills: string[];
+  experience: any[];
+  education: any[];
+  certifications: any[];
+}
 
 export default function CVPreview() {
+  const [searchParams] = useSearchParams();
+  const cvId = searchParams.get('cvId');
+  const [sections, setSections] = useState<CVSections | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCVData = async () => {
+      if (!cvId) {
+        // If no cvId, fetch the most recent CV
+        try {
+          const cvs = await apiClient.getCVs();
+          if (cvs.length > 0) {
+            const latestCV = cvs[0];
+            const data = await apiClient.getCV(latestCV.id);
+            if (data.sections) {
+              // Parse JSON strings from database
+              setSections({
+                summary: data.sections.summary || 'No summary available',
+                skills: JSON.parse(data.sections.skills || '[]'),
+                experience: JSON.parse(data.sections.experience || '[]'),
+                education: JSON.parse(data.sections.education || '[]'),
+                certifications: JSON.parse(data.sections.certifications || '[]')
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching CV:', error);
+          toast.error('Failed to load CV data');
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const data = await apiClient.getCV(cvId);
+        if (data.sections) {
+          // Parse JSON strings from database
+          setSections({
+            summary: data.sections.summary || 'No summary available',
+            skills: JSON.parse(data.sections.skills || '[]'),
+            experience: JSON.parse(data.sections.experience || '[]'),
+            education: JSON.parse(data.sections.education || '[]'),
+            certifications: JSON.parse(data.sections.certifications || '[]')
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching CV:', error);
+        toast.error('Failed to load CV data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCVData();
+  }, [cvId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!sections) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="container mx-auto px-4 py-8">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-center text-muted-foreground">No CV data available. Please upload a CV first.</p>
+              <div className="mt-4 flex justify-center">
+                <Link to="/upload">
+                  <Button>Upload CV</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -36,7 +134,7 @@ export default function CVPreview() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-foreground leading-relaxed">{mockParsedCV.summary}</p>
+                <p className="text-foreground leading-relaxed">{sections.summary}</p>
               </CardContent>
             </Card>
 
@@ -50,11 +148,15 @@ export default function CVPreview() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {mockParsedCV.skills.map((skill, index) => (
-                    <Badge key={index} variant="secondary" className="px-3 py-1">
-                      {skill}
-                    </Badge>
-                  ))}
+                  {sections.skills.length > 0 ? (
+                    sections.skills.map((skill, index) => (
+                      <Badge key={index} variant="secondary" className="px-3 py-1">
+                        {skill}
+                      </Badge>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground">No skills listed</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -68,17 +170,29 @@ export default function CVPreview() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {mockParsedCV.experience.map((exp, index) => (
-                  <div key={index} className="border-l-2 border-primary pl-4">
-                    <h3 className="font-semibold text-foreground text-lg">{exp.title}</h3>
-                    <p className="text-muted-foreground mb-2">{exp.company} • {exp.period}</p>
-                    <ul className="space-y-1 list-disc list-inside text-foreground">
-                      {exp.description.map((item, i) => (
-                        <li key={i} className="text-sm">{item}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+                {sections.experience.length > 0 ? (
+                  sections.experience.map((exp, index) => (
+                    <div key={index} className="border-l-2 border-primary pl-4">
+                      <h3 className="font-semibold text-foreground text-lg">{exp.title || 'Position'}</h3>
+                      <p className="text-muted-foreground mb-2">
+                        {exp.company || 'Company'} • {exp.period || exp.duration || 'Duration'}
+                      </p>
+                      {exp.description && (
+                        <ul className="space-y-1 list-disc list-inside text-foreground">
+                          {Array.isArray(exp.description) ? (
+                            exp.description.map((item, i) => (
+                              <li key={i} className="text-sm">{item}</li>
+                            ))
+                          ) : (
+                            <li className="text-sm">{exp.description}</li>
+                          )}
+                        </ul>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground">No work experience listed</p>
+                )}
               </CardContent>
             </Card>
 
@@ -91,17 +205,23 @@ export default function CVPreview() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {mockParsedCV.education.map((edu, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-accent-light">
-                      <GraduationCap className="h-4 w-4 text-accent" />
+                {sections.education.length > 0 ? (
+                  sections.education.map((edu, index) => (
+                    <div key={index} className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-accent-light">
+                        <GraduationCap className="h-4 w-4 text-accent" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-foreground">{edu.degree || 'Degree'}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {edu.institution || edu.school || 'Institution'} • {edu.year || edu.graduation_year || 'Year'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground">{edu.degree}</h3>
-                      <p className="text-sm text-muted-foreground">{edu.institution} • {edu.year}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-muted-foreground">No education listed</p>
+                )}
               </CardContent>
             </Card>
           </div>
