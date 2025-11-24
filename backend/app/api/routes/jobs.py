@@ -12,6 +12,7 @@ class JobCreate(BaseModel):
     company: str
     description: str
     url: str | None = None
+    job_id: str | None = None
 
 class JobScrapeRequest(BaseModel):
     url: str
@@ -26,15 +27,25 @@ class JobUpdate(BaseModel):
 @router.post("/")
 async def create_job(job: JobCreate, user = Depends(get_current_user)):
     """Create a new job description"""
-    result = supabase.table("jobs").insert({
-        "user_id": user.id,
-        "title": job.title,
-        "company": job.company,
-        "description": job.description,
-        "url": job.url
-    }).execute()
-    
-    return result.data[0]
+    try:
+        result = supabase.table("jobs").insert({
+            "user_id": user.id,
+            "title": job.title,
+            "company": job.company,
+            "description": job.description,
+            "url": job.url,
+            "job_id": job.job_id
+        }).execute()
+        
+        return result.data[0]
+    except Exception as e:
+        error_msg = str(e).lower()
+        if 'unique' in error_msg or 'duplicate' in error_msg:
+            raise HTTPException(
+                status_code=409,
+                detail="You've already added this job. Check your jobs list."
+            )
+        raise
 
 @router.get("/")
 async def list_jobs(user = Depends(get_current_user)):
@@ -120,21 +131,81 @@ async def scrape_job(
         else:
             description_json = description
         
-        # Save to database
-        result = supabase.table("jobs").insert({
-            "user_id": user.id,
-            "title": job_data.get('title', ''),
-            "company": job_data.get('company', ''),
-            "description": description_json,
-            "url": request.url
-        }).execute()
-        
-        # Return both scraped data and saved job
-        return {
-            **job_data,
-            "id": result.data[0]["id"],
-            "saved": True
-        }
+        # Save to database with job_id for deduplication
+        try:
+            result = supabase.table("jobs").insert({
+                "user_id": user.id,
+                "title": job_data.get('title', ''),
+                "company": job_data.get('company', ''),
+                "description": description_json,
+                "url": request.url,
+                "job_id": job_data.get('job_id')
+            }).execute()
+            
+            # Return both scraped data and saved job
+            return {
+                **job_data,
+                "id": result.data[0]["id"],
+                "saved": True,
+                "duplicate": False
+            }
+        except Exception as db_error:
+            error_msg = str(db_error).lower()
+            if 'unique' in error_msg or 'duplicate' in error_msg:
+                # Find the existing job and return its ID
+                existing_job = None
+                
+                # Try to find by URL first
+                if request.url:
+                    result = supabase.table("jobs")\
+                        .select("id")\
+                        .eq("user_id", user.id)\
+                        .eq("url", request.url)\
+                        .limit(1)\
+                        .execute()
+                    if result.data:
+                        existing_job = result.data[0]
+                
+                # If not found by URL, try by job_id
+                if not existing_job and job_data.get('job_id'):
+                    result = supabase.table("jobs")\
+                        .select("id")\
+                        .eq("user_id", user.id)\
+                        .eq("job_id", job_data.get('job_id'))\
+                        .limit(1)\
+                        .execute()
+                    if result.data:
+                        existing_job = result.data[0]
+                
+                # If still not found, try by company + title
+                if not existing_job:
+                    result = supabase.table("jobs")\
+                        .select("id")\
+                        .eq("user_id", user.id)\
+                        .ilike("company", job_data.get('company', ''))\
+                        .ilike("title", job_data.get('title', ''))\
+                        .limit(1)\
+                        .execute()
+                    if result.data:
+                        existing_job = result.data[0]
+                
+                if existing_job:
+                    # Return the existing job ID so frontend can redirect
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"DUPLICATE:{existing_job['id']}"
+                    )
+                else:
+                    # Couldn't find existing job, just return generic message
+                    raise HTTPException(
+                        status_code=409,
+                        detail="You've already added this job. Check your jobs list."
+                    )
+            raise
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions (including our duplicate error)
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=400,

@@ -10,12 +10,23 @@ class CVParserService:
     
     def __init__(self):
         self.client = None
+        print(f"🔧 Initializing CV Parser Service")
+        print(f"   Endpoint: {settings.AZURE_OPENAI_ENDPOINT or '(not set)'}")
+        print(f"   API Key: {'✓ Set' if settings.AZURE_OPENAI_KEY else '✗ Not set'}")
+        print(f"   Deployment: {settings.AZURE_OPENAI_DEPLOYMENT or '(not set)'}")
+        
         if settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_KEY:
-            self.client = AzureOpenAI(
-                api_key=settings.AZURE_OPENAI_KEY,
-                api_version="2024-02-01",
-                azure_endpoint=settings.AZURE_OPENAI_ENDPOINT
-            )
+            try:
+                self.client = AzureOpenAI(
+                    api_key=settings.AZURE_OPENAI_KEY,
+                    api_version="2024-02-01",
+                    azure_endpoint=settings.AZURE_OPENAI_ENDPOINT
+                )
+                print(f"✅ Azure OpenAI client initialized successfully")
+            except Exception as e:
+                print(f"❌ Failed to initialize Azure OpenAI client: {e}")
+        else:
+            print(f"⚠️  Azure OpenAI not configured - will use fallback parsing")
     
     def extract_text_from_pdf(self, file_content: bytes) -> str:
         """Extract text from PDF file"""
@@ -31,8 +42,11 @@ class CVParserService:
     async def parse_cv_text(self, cv_text: str) -> Dict[str, Any]:
         """Parse CV text using Azure OpenAI to extract structured data"""
         
+        print(f"📋 parse_cv_text called - Client available: {self.client is not None}")
+        
         if not self.client:
             # Fallback: return basic structure without AI parsing
+            print(f"⚠️  Returning fallback response - Azure OpenAI client not available")
             return {
                 "summary": "AI parsing not configured",
                 "skills": ["Please configure Azure OpenAI"],
@@ -40,6 +54,8 @@ class CVParserService:
                 "education": [],
                 "certifications": []
             }
+        
+        print(f"🤖 Using Azure OpenAI to parse CV text ({len(cv_text)} chars)")
         
         try:
             prompt = f"""
@@ -57,7 +73,7 @@ Return ONLY a valid JSON object with this exact structure:
             "title": "Job Title",
             "company": "Company Name",
             "period": "Start - End Date",
-            "description": "COMPLETE description - include ALL responsibilities, achievements, projects, technologies, metrics, and accomplishments. Preserve bullet points and details."
+            "description": ["Responsibility or achievement 1", "Responsibility or achievement 2", "..."]
         }}
     ],
     "education": [
@@ -73,10 +89,11 @@ Return ONLY a valid JSON object with this exact structure:
 
 Guidelines:
 - Extract ALL skills mentioned (technical, soft skills, tools, technologies, languages)
-- For experience: Include FULL descriptions with all bullet points, responsibilities, achievements, and metrics
+- For experience: The "description" field MUST be an array of strings, where each string is a separate bullet point/responsibility/achievement
+- Split bullet points into separate array items - do NOT combine them into one long string
 - Preserve specific details like project names, team sizes, technologies used, results achieved
 - Do NOT condense or summarize - extract verbatim when possible
-- If sections have multiple paragraphs or bullet points, include them all
+- Remove bullet point symbols (●, •, -, *) from the beginning of each item - just include the text
 
 CV Text:
 {cv_text}

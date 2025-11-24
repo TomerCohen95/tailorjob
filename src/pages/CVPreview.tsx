@@ -266,13 +266,19 @@ export default function CVPreview() {
                         {exp.company || 'Company'} • {exp.period || exp.duration || 'Duration'}
                       </p>
                       {exp.description && (
-                        <ul className="space-y-1 list-disc list-inside text-foreground">
+                        <ul className="space-y-2 list-disc list-inside text-foreground">
                           {Array.isArray(exp.description) ? (
                             exp.description.map((item, i) => (
-                              <li key={i} className="text-sm">{item}</li>
+                              <li key={i} className="text-sm leading-relaxed">{item}</li>
                             ))
                           ) : (
-                            <li className="text-sm">{exp.description}</li>
+                            // Handle string with bullet points - split by common bullet symbols
+                            exp.description.split(/[●•\n]/g)
+                              .map(item => item.trim())
+                              .filter(item => item.length > 0)
+                              .map((item, i) => (
+                                <li key={i} className="text-sm leading-relaxed">{item}</li>
+                              ))
                           )}
                         </ul>
                       )}

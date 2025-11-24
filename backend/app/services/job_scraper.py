@@ -40,25 +40,56 @@ class JobScraperService:
         # Step 1: Fetch HTML
         html = await self._fetch_html(url)
         
-        # Step 2: Try structured data extraction first (cheaper)
+        # Step 2: Try structured data extraction as hint
         structured_data = self._extract_structured_data(html)
-        if structured_data and self._is_complete_job_data(structured_data):
-            # Validate before returning
-            self._validate_job_page(html, structured_data)
-            print(f"✅ Extracted from structured data: {structured_data.get('title', 'N/A')}")
-            return structured_data
         
-        # Step 3: Fall back to AI extraction with cleaned text
+        # Step 3: Always use AI extraction for consistent markdown formatting
+        # Structured data is used only as a hint to improve accuracy
         clean_text = self._extract_clean_text(html)
-        
-        # If we have partial structured data, pass it as a hint to AI
         job_data = await self._extract_job_data(clean_text, hint=structured_data)
         
-        # Step 4: Validate the extracted data
+        # Step 4: Validate the extracted data (only after AI has processed it)
         print(f"🔍 Validating job data: title='{job_data.get('title', 'N/A')}'")
         self._validate_job_page(html, job_data)
         
+        # Step 5: Extract job ID from URL for deduplication
+        job_data['job_id'] = self._extract_job_id(url)
+        
         return job_data
+    
+    def _extract_job_id(self, url: str) -> str | None:
+        """
+        Extract job identifier from URL for deduplication.
+        Handles common job board URL patterns.
+        """
+        import re
+        
+        # LinkedIn: /jobs/view/1234567890 or ?currentJobId=1234567890
+        linkedin_match = re.search(r'/jobs/view/(\d+)', url) or re.search(r'currentJobId=(\d+)', url)
+        if linkedin_match:
+            return f"linkedin_{linkedin_match.group(1)}"
+        
+        # Indeed: /viewjob?jk=abc123def456
+        indeed_match = re.search(r'[?&]jk=([a-f0-9]+)', url)
+        if indeed_match:
+            return f"indeed_{indeed_match.group(1)}"
+        
+        # Glassdoor: /job-listing/[title]-[company]-JV_IC[id]
+        glassdoor_match = re.search(r'JV_IC(\d+)', url) or re.search(r'jobListingId=(\d+)', url)
+        if glassdoor_match:
+            return f"glassdoor_{glassdoor_match.group(1)}"
+        
+        # Microsoft Careers: /careers/job/1234567890123456
+        microsoft_match = re.search(r'/careers/job/(\d+)', url)
+        if microsoft_match:
+            return f"microsoft_{microsoft_match.group(1)}"
+        
+        # Generic: look for /job/[id] or /jobs/[id] or ?jobId=
+        generic_match = re.search(r'/jobs?/(\d+)', url) or re.search(r'[?&]jobId=(\d+)', url, re.I)
+        if generic_match:
+            return f"generic_{generic_match.group(1)}"
+        
+        return None
     
     async def _fetch_html(self, url: str) -> str:
         """Fetch HTML from URL with proper headers"""
@@ -106,6 +137,10 @@ class JobScraperService:
                     job_data['company'] = data.get('hiringOrganization', {}).get('name', '')
                     job_data['description'] = data.get('description', '')
                     print(f"📊 Found JSON-LD job posting data")
+                    print(f"   Title: {job_data.get('title', 'N/A')}")
+                    print(f"   Company: {job_data.get('company', 'N/A')}")
+                    print(f"   Description length: {len(job_data.get('description', ''))} chars")
+                    # Don't return yet - let it be validated by _is_complete_job_data
                     return job_data
             except:
                 continue

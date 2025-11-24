@@ -98,6 +98,9 @@ class CVWorker:
         print("🚀 CV Worker started")
         print(f"📡 Listening on queue: {queue_service.CV_PARSE_QUEUE}")
         
+        consecutive_errors = 0
+        max_consecutive_errors = 5
+        
         while self.running:
             try:
                 # Try to get a job from the queue
@@ -105,6 +108,7 @@ class CVWorker:
                 job = await queue_service.dequeue(queue_service.CV_PARSE_QUEUE)
                 
                 if job:
+                    consecutive_errors = 0  # Reset error counter on successful dequeue
                     print(f"📬 Job received: {job}")
                     await self.process_cv_parse_job(job)
                 else:
@@ -113,10 +117,17 @@ class CVWorker:
                     await asyncio.sleep(5)
                     
             except Exception as e:
-                print(f"❌ Worker error: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                await asyncio.sleep(5)
+                consecutive_errors += 1
+                print(f"❌ Worker error ({consecutive_errors}/{max_consecutive_errors}): {str(e)}")
+                
+                if consecutive_errors >= max_consecutive_errors:
+                    print(f"⚠️  Too many consecutive errors ({consecutive_errors}), increasing backoff to 30s")
+                    await asyncio.sleep(30)
+                    consecutive_errors = 0  # Reset after long sleep
+                else:
+                    import traceback
+                    traceback.print_exc()
+                    await asyncio.sleep(5)
     
     async def start(self):
         """Start the worker in the background"""

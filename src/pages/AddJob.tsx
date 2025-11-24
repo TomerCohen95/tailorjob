@@ -118,14 +118,44 @@ export default function AddJob() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to fetch job details';
       
-      // Set error state for visible alert
+      // Check if error message contains existing job ID (format: "DUPLICATE:job-id-uuid")
+      const duplicateMatch = message.match(/DUPLICATE:([a-f0-9-]+)/i);
+      
+      if (duplicateMatch) {
+        const existingJobId = duplicateMatch[1];
+        
+        // Show toast with redirect action
+        toast.warning('⚠️ Job Already Added', {
+          description: 'Redirecting you to the existing job...',
+          duration: 2000,
+        });
+        
+        // Redirect to the existing job's tailor page
+        setTimeout(() => {
+          navigate(`/tailor-cv/${existingJobId}`);
+        }, 1000);
+        
+        return; // Don't set error state, we're redirecting
+      }
+      
+      // Set error state for visible alert (non-duplicate errors)
       setUrlError(message);
       
-      // Also show toast for immediate feedback
-      toast.error('❌ Invalid Job URL', {
-        description: message,
-        duration: 6000,
-      });
+      // Check if it's a generic duplicate error
+      const isDuplicate = message.includes('already added this job');
+      
+      // Show appropriate toast
+      if (isDuplicate) {
+        toast.warning('⚠️ Duplicate Job', {
+          description: message,
+          duration: 5000,
+        });
+      } else {
+        toast.error('❌ Invalid Job URL', {
+          description: message,
+          duration: 6000,
+        });
+      }
     } finally {
       setIsFetchingUrl(false);
     }
