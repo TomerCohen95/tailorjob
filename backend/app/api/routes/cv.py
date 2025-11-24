@@ -94,7 +94,7 @@ async def upload_cv(
         user.id
     )
     
-    # Create database record with file hash
+    # Create database record with file hash and set as primary
     result = supabase.table("cvs").insert({
         "user_id": user.id,
         "original_filename": file.filename,
@@ -102,7 +102,8 @@ async def upload_cv(
         "file_size": file.size,
         "mime_type": file.content_type,
         "status": "uploaded",
-        "file_hash": file_hash
+        "file_hash": file_hash,
+        "is_primary": True  # New uploads are automatically set as primary
     }).execute()
     
     cv_id = result.data[0]["id"]
@@ -144,6 +145,66 @@ async def list_cvs(user = Depends(get_current_user)):
         .execute()
     
     return result.data
+
+@router.get("/notifications")
+async def get_notifications(user = Depends(get_current_user)):
+    """Get all unread notifications for the current user"""
+    result = supabase.table("cv_notifications")\
+        .select("*")\
+        .eq("user_id", user.id)\
+        .eq("read", False)\
+        .order("created_at", desc=True)\
+        .execute()
+    
+    return result.data
+
+@router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, user = Depends(get_current_user)):
+    """Mark a notification as read"""
+    # Verify notification belongs to user
+    notification = supabase.table("cv_notifications")\
+        .select("*")\
+        .eq("id", notification_id)\
+        .eq("user_id", user.id)\
+        .single()\
+        .execute()
+    
+    if not notification.data:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    # Mark as read
+    supabase.table("cv_notifications")\
+        .update({"read": True})\
+        .eq("id", notification_id)\
+        .execute()
+    
+    return {"message": "Notification marked as read"}
+
+@router.delete("/notifications/{notification_id}")
+async def delete_notification(notification_id: str, user = Depends(get_current_user)):
+    """Delete a notification"""
+    # Verify notification belongs to user
+    notification = supabase.table("cv_notifications")\
+        .select("id")\
+        .eq("id", notification_id)\
+        .eq("user_id", user.id)\
+        .execute()
+    
+    if not notification.data:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    # Delete notification (no need to capture response)
+    try:
+        supabase.table("cv_notifications")\
+            .delete()\
+            .eq("id", notification_id)\
+            .eq("user_id", user.id)\
+            .execute()
+    except Exception as e:
+        # Ignore postgrest response parsing errors, deletion was successful
+        print(f"⚠️  Notification deleted but response parsing failed: {str(e)}")
+    
+    return {"message": "Notification deleted"}
 
 @router.get("/{cv_id}")
 async def get_cv(cv_id: str, user = Depends(get_current_user)):

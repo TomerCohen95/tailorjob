@@ -78,6 +78,16 @@ export interface CVWithSections {
   sections: CVSections | null;
 }
 
+export interface CVNotification {
+  id: string;
+  user_id: string;
+  cv_id: string;
+  type: 'cv_parsed' | 'cv_error';
+  message: string;
+  read: boolean;
+  created_at: string;
+}
+
 export const cvAPI = {
   /**
    * Upload a CV file
@@ -129,6 +139,31 @@ export const cvAPI = {
    */
   async delete(cvId: string): Promise<{ message: string }> {
     return fetchAPI(`/cv/${cvId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Get all unread notifications
+   */
+  async getNotifications(): Promise<CVNotification[]> {
+    return fetchAPI('/cv/notifications');
+  },
+
+  /**
+   * Mark a notification as read
+   */
+  async markNotificationRead(notificationId: string): Promise<{ message: string }> {
+    return fetchAPI(`/cv/notifications/${notificationId}/read`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Delete a notification
+   */
+  async deleteNotification(notificationId: string): Promise<{ message: string }> {
+    return fetchAPI(`/cv/notifications/${notificationId}`, {
       method: 'DELETE',
     });
   },

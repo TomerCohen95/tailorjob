@@ -1,14 +1,21 @@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Clock, User, Sparkles } from 'lucide-react';
+import { Clock, User, Sparkles, Star } from 'lucide-react';
 import { Revision } from '@/lib/mockData';
 
 interface RevisionHistoryProps {
   revisions: Revision[];
   onSelectRevision: (revision: Revision) => void;
+  onMakePrimary?: (revision: Revision) => void;
+  primaryRevisionId?: string;
 }
 
-export function RevisionHistory({ revisions, onSelectRevision }: RevisionHistoryProps) {
+export function RevisionHistory({
+  revisions,
+  onSelectRevision,
+  onMakePrimary,
+  primaryRevisionId
+}: RevisionHistoryProps) {
   return (
     <div className="w-80 border-l border-border bg-card">
       <div className="p-4 border-b border-border">
@@ -23,39 +30,56 @@ export function RevisionHistory({ revisions, onSelectRevision }: RevisionHistory
 
       <ScrollArea className="h-[calc(100vh-200px)]">
         <div className="p-4 space-y-2">
-          {revisions.map((revision, index) => (
-            <Button
-              key={revision.id}
-              variant="ghost"
-              className="w-full justify-start h-auto p-3"
-              onClick={() => onSelectRevision(revision)}
-            >
-              <div className="flex items-start gap-3 w-full">
-                <div className={`p-2 rounded-lg ${
-                  revision.type === 'ai' ? 'bg-accent-light' : 'bg-primary-light'
-                }`}>
-                  {revision.type === 'ai' ? (
-                    <Sparkles className="h-4 w-4 text-accent" />
-                  ) : (
-                    <User className="h-4 w-4 text-primary" />
-                  )}
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-medium text-foreground">
-                    {revision.content}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(revision.timestamp).toLocaleString()}
-                  </p>
-                  {index === 0 && (
-                    <span className="inline-block mt-1 text-xs bg-primary-light text-primary px-2 py-0.5 rounded">
-                      Current
-                    </span>
-                  )}
-                </div>
+          {revisions.map((revision, index) => {
+            const isPrimary = primaryRevisionId === revision.id || (index === 0 && !primaryRevisionId);
+            
+            return (
+              <div key={revision.id} className="space-y-2">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start h-auto p-3"
+                  onClick={() => onSelectRevision(revision)}
+                >
+                  <div className="flex items-start gap-3 w-full">
+                    <div className={`p-2 rounded-lg ${
+                      revision.type === 'ai' ? 'bg-accent-light' : 'bg-primary-light'
+                    }`}>
+                      {revision.type === 'ai' ? (
+                        <Sparkles className="h-4 w-4 text-accent" />
+                      ) : (
+                        <User className="h-4 w-4 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-sm font-medium text-foreground">
+                        {revision.content}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(revision.timestamp).toLocaleString()}
+                      </p>
+                      {isPrimary && (
+                        <span className="inline-block mt-1 text-xs bg-primary-light text-primary px-2 py-0.5 rounded">
+                          Primary
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Button>
+                
+                {onMakePrimary && !isPrimary && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => onMakePrimary(revision)}
+                  >
+                    <Star className="h-3 w-3 mr-1" />
+                    Make Primary
+                  </Button>
+                )}
               </div>
-            </Button>
-          ))}
+            );
+          })}
         </div>
       </ScrollArea>
     </div>

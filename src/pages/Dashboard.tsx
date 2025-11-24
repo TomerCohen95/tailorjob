@@ -3,9 +3,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
-import { FileText, Plus, Briefcase, Upload, AlertCircle, Trash2, History, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { FileText, Plus, Briefcase, Upload, AlertCircle, Trash2, History, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, Loader2, Bell, Eye, Star } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { cvAPI, jobsAPI, type CV, type Job } from '@/lib/api';
+import { cvAPI, jobsAPI, type CV, type Job, type CVNotification } from '@/lib/api';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [showCVHistory, setShowCVHistory] = useState(searchParams.get('showHistory') === 'true');
   const [cvToDelete, setCvToDelete] = useState<CV | null>(null);
   const [isDeletingCV, setIsDeletingCV] = useState(false);
+  const [notifications, setNotifications] = useState<CVNotification[]>([]);
 
   // Update URL when history view changes
   const toggleCVHistory = () => {
@@ -68,14 +69,16 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       
-      // Load CVs and jobs in parallel
-      const [cvsData, jobsData] = await Promise.all([
+      // Load CVs, jobs, and notifications in parallel
+      const [cvsData, jobsData, notificationsData] = await Promise.all([
         cvAPI.list(),
-        jobsAPI.list()
+        jobsAPI.list(),
+        cvAPI.getNotifications()
       ]);
       
       setCVs(cvsData);
       setJobs(jobsData);
+      setNotifications(notificationsData);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load data';
       
@@ -184,6 +187,41 @@ export default function Dashboard() {
     }
   };
 
+  const handleViewCV = async (notification: CVNotification) => {
+    try {
+      // Mark notification as read
+      await cvAPI.deleteNotification(notification.id);
+      setNotifications(notifications.filter(n => n.id !== notification.id));
+      
+      // Navigate to CV
+      navigate(`/cv/${notification.cv_id}`);
+    } catch (error) {
+      console.error('Error handling notification:', error);
+    }
+  };
+
+  const handleMakePrimary = async (notification: CVNotification) => {
+    try {
+      await cvAPI.setPrimary(notification.cv_id);
+      await cvAPI.deleteNotification(notification.id);
+      setNotifications(notifications.filter(n => n.id !== notification.id));
+      toast.success('CV set as primary');
+      loadData(); // Reload to update UI
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to set CV as primary';
+      toast.error(message);
+    }
+  };
+
+  const handleDismissNotification = async (notificationId: string) => {
+    try {
+      await cvAPI.deleteNotification(notificationId);
+      setNotifications(notifications.filter(n => n.id !== notificationId));
+    } catch (error) {
+      console.error('Error dismissing notification:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -212,6 +250,47 @@ export default function Dashboard() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        )}
+
+        {/* Notifications Section */}
+        {notifications.length > 0 && (
+          <div className="mb-6 space-y-3">
+            {notifications.map((notification) => (
+              <Alert key={notification.id} className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
+                <Bell className="h-4 w-4 text-green-600" />
+                <AlertDescription className="flex items-center justify-between gap-4">
+                  <span className="text-green-800 dark:text-green-200">{notification.message}</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleViewCV(notification)}
+                      className="border-green-600 text-green-700 hover:bg-green-100"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      View
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleMakePrimary(notification)}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <Star className="h-3 w-3 mr-1" />
+                      Make Primary
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDismissNotification(notification.id)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ))}
+          </div>
         )}
 
         <div className="grid md:grid-cols-2 gap-6 mb-8">

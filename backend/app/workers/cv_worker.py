@@ -81,6 +81,18 @@ class CVWorker:
                 "parsed_at": datetime.utcnow().isoformat()
             }).eq("id", cv_id).execute()
             
+            # Create notification for successful parse
+            try:
+                supabase.table("cv_notifications").insert({
+                    "user_id": user_id,
+                    "cv_id": cv_id,
+                    "type": "cv_parsed",
+                    "message": f"Your CV '{filename}' has been successfully parsed and is ready to use!"
+                }).execute()
+                print(f"📬 Notification created for CV: {cv_id}")
+            except Exception as notif_error:
+                print(f"⚠️  Failed to create notification: {str(notif_error)}")
+            
             print(f"✅ Successfully parsed CV: {cv_id}")
             
         except Exception as e:
