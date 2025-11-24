@@ -4,13 +4,27 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
 import { FileUpload } from '@/components/ui/file-upload';
-import { ArrowRight, CheckCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { cvAPI } from '@/lib/api';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function UploadCV() {
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicateCvId, setDuplicateCvId] = useState<string | null>(null);
+  const [duplicateCvInfo, setDuplicateCvInfo] = useState<any>(null);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -20,16 +34,99 @@ export default function UploadCV() {
     if (!file) return;
 
     setIsUploading(true);
-    // Mock upload delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    toast.success('CV uploaded successfully!');
-    setIsUploading(false);
-    navigate('/cv-preview');
+    try {
+      const result: any = await cvAPI.upload(file);
+      
+      // Check if it's a duplicate
+      if (result.status === 'duplicate') {
+        setDuplicateCvId(result.cv_id);
+        setDuplicateCvInfo(result.existing_cv);
+        setShowDuplicateDialog(true);
+        setIsUploading(false);
+        return;
+      }
+      
+      toast.success('CV uploaded successfully!', {
+        description: 'Your CV is being parsed...'
+      });
+      
+      // Redirect to dashboard after successful upload
+      navigate('/dashboard');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to upload CV';
+      toast.error('Upload failed', {
+        description: message
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleReparse = async () => {
+    if (!duplicateCvId) return;
+
+    setShowDuplicateDialog(false);
+    setIsUploading(true);
+
+    try {
+      await cvAPI.reparse(duplicateCvId);
+      
+      toast.success('Re-parsing initiated!', {
+        description: 'Your CV is being parsed with the updated AI...'
+      });
+      
+      navigate('/dashboard');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to re-parse CV';
+      toast.error('Re-parse failed', {
+        description: message
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUseDuplicate = () => {
+    setShowDuplicateDialog(false);
+    navigate('/dashboard');
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              <AlertDialogTitle>CV Already Exists</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                You've already uploaded this CV on{' '}
+                {duplicateCvInfo?.created_at &&
+                  new Date(duplicateCvInfo.created_at).toLocaleDateString()}
+              </p>
+              <p className="font-medium text-foreground">
+                File: {duplicateCvInfo?.original_filename}
+              </p>
+              <p className="text-sm mt-2">
+                Would you like to re-parse it with the latest AI improvements, or use the existing version?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleUseDuplicate}>
+              Use Existing
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleReparse}>
+              Re-parse CV
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="min-h-screen bg-background">
       <Navigation />
       
       <main className="container mx-auto px-4 py-8">
@@ -106,6 +203,7 @@ export default function UploadCV() {
           </div>
         </div>
       </main>
-    </div>
+      </div>
+    </>
   );
 }

@@ -2,21 +2,31 @@
 
 An intelligent CV tailoring platform that helps job seekers customize their resumes for specific job descriptions.
 
-## 🔐 Authentication
+## 🚀 Quick Start
 
+### 1.  Authentication Setup (8 minutes)
 This app supports **free Google OAuth** sign-up and sign-in!
 
-### Quick Setup (8 minutes)
+- 📖 [`GOOGLE_OAUTH_SETUP.md`](GOOGLE_OAUTH_SETUP.md) - Complete setup guide
+- 🚀 [`QUICK_START.md`](QUICK_START.md) - Fastest way to enable Google OAuth
+- **Cost**: $0.00 (Completely free!)
 
-See [`QUICK_START.md`](QUICK_START.md) for the fastest way to enable Google OAuth.
+### 2. 🤖 Azure OpenAI Setup (15 minutes)
+Enable AI-powered CV tailoring with Azure OpenAI!
 
-### Detailed Guides
+- ⚡ [`AZURE_OPENAI_QUICKSTART.md`](AZURE_OPENAI_QUICKSTART.md) - **Start here!** (5-minute automated setup)
+- 📖 [`AZURE_OPENAI_SETUP.md`](AZURE_OPENAI_SETUP.md) - Detailed manual guide
+- 🔧 [`setup-azure-openai.sh`](setup-azure-openai.sh) - Automated setup script
+- **Cost**: ~$2-50/month (Free Azure credits available!)
 
-- 📖 [`GOOGLE_OAUTH_SETUP.md`](GOOGLE_OAUTH_SETUP.md) - Complete setup guide with explanations
-- ✅ [`GOOGLE_OAUTH_CHECKLIST.md`](GOOGLE_OAUTH_CHECKLIST.md) - Step-by-step checklist
-- 🚀 [`setup-oauth-commands.sh`](setup-oauth-commands.sh) - Interactive setup script
+**Automated Setup**:
+```bash
+# Login to Azure
+az login
 
-**Cost**: $0.00 (Completely free, no credit card required!)
+# Run the setup script
+./setup-azure-openai.sh
+```
 
 ---
 

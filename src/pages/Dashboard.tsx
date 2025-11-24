@@ -1,21 +1,41 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
-import { FileText, Plus, Briefcase, Upload } from 'lucide-react';
-import { mockJobs } from '@/lib/mockData';
+import { FileText, Plus, Briefcase, Upload, AlertCircle, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { cvAPI, jobsAPI, type CV, type Job } from '@/lib/api';
+import { toast } from 'sonner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [cvs, setCVs] = useState<CV[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
         navigate('/login');
-      } 
+      } else {
+        loadData();
+      }
     });
 
     // Listen for auth changes
@@ -28,6 +48,60 @@ export default function Dashboard() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  async function loadData() {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Load CVs and jobs in parallel
+      const [cvsData, jobsData] = await Promise.all([
+        cvAPI.list(),
+        jobsAPI.list()
+      ]);
+      
+      setCVs(cvsData);
+      setJobs(jobsData);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load data';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteJob() {
+    if (!jobToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await jobsAPI.delete(jobToDelete.id);
+      toast.success('Job deleted successfully');
+      setJobs(jobs.filter(j => j.id !== jobToDelete.id));
+      setJobToDelete(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete job';
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  const latestCV = cvs[0]; // Most recent CV
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-64">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -38,6 +112,13 @@ export default function Dashboard() {
           <p className="text-muted-foreground">Manage your CVs and job applications</p>
         </div>
 
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           <Card className="border-2 border-primary/20 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader>
@@ -47,24 +128,41 @@ export default function Dashboard() {
                 </div>
                 <CardTitle>Your CV</CardTitle>
               </div>
-              <CardDescription>Last uploaded: January 15, 2024</CardDescription>
+              <CardDescription>
+                {latestCV
+                  ? `Last uploaded: ${new Date(latestCV.created_at).toLocaleDateString()}`
+                  : 'No CV uploaded yet'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="font-medium text-foreground">john_doe_cv.pdf</p>
-                <p className="text-sm text-muted-foreground">245 KB</p>
-              </div>
-              <div className="flex gap-2">
-                <Link to="/cv-preview" className="flex-1">
-                  <Button variant="outline" className="w-full">View Parsed CV</Button>
-                </Link>
-                <Link to="/upload-cv" className="flex-1">
+              {latestCV ? (
+                <>
+                  <div className="p-4 bg-muted rounded-lg">
+                    <p className="font-medium text-foreground">{latestCV.original_filename}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {(latestCV.file_size / 1024).toFixed(0)} KB • {latestCV.status}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Link to="/cv-preview" className="flex-1">
+                      <Button variant="outline" className="w-full">View Parsed CV</Button>
+                    </Link>
+                    <Link to="/upload-cv" className="flex-1">
+                      <Button className="w-full bg-gradient-to-r from-primary to-accent">
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload New
+                      </Button>
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <Link to="/upload-cv">
                   <Button className="w-full bg-gradient-to-r from-primary to-accent">
                     <Upload className="mr-2 h-4 w-4" />
-                    Upload New
+                    Upload Your First CV
                   </Button>
                 </Link>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -84,24 +182,53 @@ export default function Dashboard() {
                   </Button>
                 </Link>
               </div>
-              <CardDescription>{mockJobs.length} jobs tracked</CardDescription>
+              <CardDescription>{jobs.length} jobs tracked</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {mockJobs.map((job) => (
-                  <Link key={job.id} to={`/jobs/${job.id}/tailor`}>
-                    <div className="p-4 border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-foreground">{job.title}</p>
-                          <p className="text-sm text-muted-foreground">{job.company}</p>
+              {jobs.length > 0 ? (
+                <div className="space-y-2">
+                  {jobs.slice(0, 3).map((job) => (
+                    <div key={job.id} className="p-4 border border-border rounded-lg hover:bg-muted transition-colors group">
+                      <div className="flex items-start justify-between gap-2">
+                        <Link to={`/jobs/${job.id}/tailor`} className="flex-1">
+                          <div>
+                            <p className="font-medium text-foreground">{job.title}</p>
+                            <p className="text-sm text-muted-foreground">{job.company}</p>
+                          </div>
+                        </Link>
+                        <div className="flex gap-1">
+                          <Link to={`/jobs/${job.id}/tailor`}>
+                            <Button size="sm" variant="ghost">Tailor CV</Button>
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setJobToDelete(job);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button size="sm" variant="ghost">Tailor CV</Button>
                       </div>
                     </div>
+                  ))}
+                  {jobs.length > 3 && (
+                    <p className="text-sm text-muted-foreground text-center pt-2">
+                      +{jobs.length - 3} more jobs
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-muted-foreground mb-4">No jobs added yet</p>
+                  <Link to="/jobs/add">
+                    <Button variant="outline">Add Your First Job</Button>
                   </Link>
-                ))}
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -136,6 +263,28 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </main>
+
+      <AlertDialog open={!!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{jobToDelete?.title}" at {jobToDelete?.company}?
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteJob}
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
