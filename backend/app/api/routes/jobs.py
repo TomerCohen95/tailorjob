@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.api.deps import get_current_user
 from app.utils.supabase_client import supabase
+from app.services.job_scraper import job_scraper_service
 
 router = APIRouter()
 
@@ -11,6 +12,9 @@ class JobCreate(BaseModel):
     company: str
     description: str
     url: str | None = None
+
+class JobScrapeRequest(BaseModel):
+    url: str
 
 class JobUpdate(BaseModel):
     title: str | None = None
@@ -95,3 +99,21 @@ async def delete_job(job_id: str, user = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Job not found")
     
     return {"message": "Job deleted successfully"}
+
+@router.post("/scrape")
+async def scrape_job(
+    request: JobScrapeRequest,
+    user = Depends(get_current_user)
+):
+    """
+    Scrape job details from a URL.
+    Uses BeautifulSoup + Azure OpenAI for cost-effective extraction.
+    """
+    try:
+        job_data = await job_scraper_service.scrape_job(request.url)
+        return job_data
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to scrape job: {str(e)}"
+        )

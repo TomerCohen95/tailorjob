@@ -1,20 +1,51 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Navigation } from '@/components/layout/Navigation';
 import { JobDescriptionPanel } from '@/components/cv/JobDescriptionPanel';
 import { CVEditor } from '@/components/cv/CVEditor';
 import { ChatPanel } from '@/components/cv/ChatPanel';
 import { RevisionHistory } from '@/components/cv/RevisionHistory';
-import { Save, Download, History } from 'lucide-react';
-import { mockJobs, mockTailoredCV, mockChatMessages, mockRevisions, ChatMessage, Revision } from '@/lib/mockData';
+import { Save, Download, History, Loader2 } from 'lucide-react';
+import { mockTailoredCV, mockChatMessages, mockRevisions, ChatMessage, Revision } from '@/lib/mockData';
 import { toast } from 'sonner';
+import { jobsAPI, type Job } from '@/lib/api';
 
 export default function TailorCV() {
-  const job = mockJobs[0]; // Using first mock job
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [job, setJob] = useState<Job | null>(null);
+  const [loading, setLoading] = useState(true);
   const [cvContent, setCvContent] = useState(mockTailoredCV);
   const [messages, setMessages] = useState<ChatMessage[]>(mockChatMessages);
   const [revisions, setRevisions] = useState<Revision[]>(mockRevisions);
   const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    if (!id) {
+      toast.error('No job ID provided');
+      navigate('/dashboard');
+      return;
+    }
+
+    loadJob();
+  }, [id, navigate]);
+
+  async function loadJob() {
+    try {
+      setLoading(true);
+      const jobData = await jobsAPI.get(id!);
+      setJob(jobData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load job';
+      console.error('Failed to load job:', error);
+      toast.error(message);
+      // Don't auto-redirect, let user see the error
+      setJob(null);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const handleSendMessage = (message: string) => {
     const userMessage: ChatMessage = {
@@ -57,10 +88,42 @@ export default function TailorCV() {
     toast.info(`Loading revision: ${revision.content}`);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <p>Loading job details...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex flex-col items-center justify-center h-64 gap-4">
+            <p className="text-muted-foreground">Failed to load job details</p>
+            <Button onClick={() => navigate('/dashboard')}>
+              Back to Dashboard
+            </Button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       {/* Action Bar */}
       <div className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-3">

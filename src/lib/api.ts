@@ -50,10 +50,10 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 export interface CV {
   id: string;
   user_id: string;
-  filename: string;
+  original_filename: string;
   file_path: string;
   file_size: number;
-  file_type: string;
+  mime_type: string;
   status: 'uploaded' | 'parsing' | 'parsed' | 'error';
   created_at: string;
   updated_at: string;
@@ -102,6 +102,15 @@ export const cvAPI = {
    */
   async get(cvId: string): Promise<CVWithSections> {
     return fetchAPI(`/cv/${cvId}`);
+  },
+
+  /**
+   * Manually trigger re-parsing of an existing CV
+   */
+  async reparse(cvId: string): Promise<{ cv_id: string; job_id: string; status: string; message: string }> {
+    return fetchAPI(`/cv/${cvId}/reparse`, {
+      method: 'POST',
+    });
   },
 
   /**
@@ -183,6 +192,16 @@ export const jobsAPI = {
   async delete(jobId: string): Promise<{ message: string }> {
     return fetchAPI(`/jobs/${jobId}`, {
       method: 'DELETE',
+    });
+  },
+
+  /**
+   * Scrape job details from a URL
+   */
+  async scrapeFromUrl(url: string): Promise<{ title: string; company: string; description: string }> {
+    return fetchAPI('/jobs/scrape', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
     });
   },
 };

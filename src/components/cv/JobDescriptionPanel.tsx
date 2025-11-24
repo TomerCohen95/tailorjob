@@ -1,6 +1,6 @@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Briefcase } from 'lucide-react';
-import { Job } from '@/lib/mockData';
+import { Job } from '@/lib/api';
 
 interface JobDescriptionPanelProps {
   job: Job;

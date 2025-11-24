@@ -1,0 +1,256 @@
+import httpx
+from bs4 import BeautifulSoup
+from openai import AsyncAzureOpenAI
+from app.config import settings
+import json
+import re
+
+class JobScraperService:
+    """
+    Hybrid job scraper using BeautifulSoup preprocessing + Azure OpenAI extraction.
+    Cost-effective approach that reduces AI token usage.
+    
+    For JavaScript-heavy sites (LinkedIn, Indeed), tries to extract from page metadata
+    and JSON-LD structured data first before falling back to full AI extraction.
+    """
+    
+    def __init__(self):
+        self.client = AsyncAzureOpenAI(
+            api_key=settings.AZURE_OPENAI_KEY,
+            api_version="2024-02-15-preview",
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT
+        )
+        self.deployment = settings.AZURE_OPENAI_DEPLOYMENT
+    
+    async def scrape_job(self, url: str) -> dict:
+        """
+        Scrape job posting from URL.
+        
+        Process:
+        1. Fetch HTML with httpx
+        2. Try to extract from structured data (JSON-LD, Open Graph)
+        3. If insufficient, clean HTML and send to AI
+        
+        Args:
+            url: Job posting URL
+            
+        Returns:
+            dict: {title, company, description}
+        """
+        # Step 1: Fetch HTML
+        html = await self._fetch_html(url)
+        
+        # Step 2: Try structured data extraction first (cheaper)
+        structured_data = self._extract_structured_data(html)
+        if structured_data and self._is_complete_job_data(structured_data):
+            print(f"✅ Extracted from structured data: {structured_data.get('title', 'N/A')}")
+            return structured_data
+        
+        # Step 3: Fall back to AI extraction with cleaned text
+        clean_text = self._extract_clean_text(html)
+        
+        # If we have partial structured data, pass it as a hint to AI
+        job_data = await self._extract_job_data(clean_text, hint=structured_data)
+        
+        return job_data
+    
+    async def _fetch_html(self, url: str) -> str:
+        """Fetch HTML from URL with proper headers"""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
+        
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            return response.text
+    
+    def _extract_structured_data(self, html: str) -> dict | None:
+        """
+        Extract job data from structured metadata (JSON-LD, Open Graph, meta tags).
+        Works well for LinkedIn, Indeed, and other professional sites.
+        """
+        soup = BeautifulSoup(html, 'html.parser')
+        job_data = {}
+        
+        # Try JSON-LD structured data (best source)
+        json_ld_scripts = soup.find_all('script', type='application/ld+json')
+        for script in json_ld_scripts:
+            try:
+                data = json.loads(script.string)
+                if isinstance(data, dict) and data.get('@type') == 'JobPosting':
+                    job_data['title'] = data.get('title', '')
+                    job_data['company'] = data.get('hiringOrganization', {}).get('name', '')
+                    job_data['description'] = data.get('description', '')
+                    print(f"📊 Found JSON-LD job posting data")
+                    return job_data
+            except:
+                continue
+        
+        # Try Open Graph meta tags
+        og_title = soup.find('meta', property='og:title')
+        og_description = soup.find('meta', property='og:description')
+        
+        if og_title:
+            job_data['title'] = og_title.get('content', '')
+        if og_description:
+            # OG description often has company info
+            desc = og_description.get('content', '')
+            job_data['description'] = desc
+            # Try to extract company from description
+            if ' at ' in desc:
+                parts = desc.split(' at ', 1)
+                if len(parts) == 2:
+                    job_data['company'] = parts[1].split(' ·')[0].strip()
+        
+        # Try standard meta tags
+        if not job_data.get('title'):
+            title_tag = soup.find('title')
+            if title_tag:
+                title_text = title_tag.string or ''
+                # Often format: "Job Title - Company | Site"
+                job_data['title'] = title_text.split('|')[0].split('-')[0].strip()
+        
+        # Try to find company in meta
+        company_meta = soup.find('meta', attrs={'name': 'company'}) or \
+                      soup.find('meta', attrs={'property': 'og:site_name'})
+        if company_meta and not job_data.get('company'):
+            job_data['company'] = company_meta.get('content', '')
+        
+        return job_data if job_data else None
+    
+    def _is_complete_job_data(self, data: dict | None) -> bool:
+        """Check if we have complete job data (title, company, description)"""
+        if not data:
+            return False
+        return bool(data.get('title') and data.get('company') and
+                   data.get('description') and len(data.get('description', '')) > 100)
+    
+    def _extract_clean_text(self, html: str) -> str:
+        """
+        Extract clean text from HTML using BeautifulSoup.
+        Removes scripts, styles, navigation, footers - keeps only content.
+        This reduces token usage by ~90% compared to sending raw HTML.
+        """
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Remove unwanted elements
+        for element in soup(['script', 'style', 'nav', 'footer', 'header', 'aside', 'iframe']):
+            element.decompose()
+        
+        # Remove common noise classes/ids
+        noise_selectors = [
+            '[class*="cookie"]', '[class*="banner"]', '[class*="modal"]',
+            '[class*="popup"]', '[class*="advertisement"]', '[id*="cookie"]',
+            '[class*="navigation"]', '[class*="menu"]', '[class*="sidebar"]'
+        ]
+        for selector in noise_selectors:
+            for element in soup.select(selector):
+                element.decompose()
+        
+        # Extract text
+        text = soup.get_text(separator='\n', strip=True)
+        
+        # Clean up excessive whitespace
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        clean_text = '\n'.join(lines)
+        
+        # Limit to ~8000 chars (roughly 2000 tokens) to stay well under limits
+        if len(clean_text) > 8000:
+            clean_text = clean_text[:8000] + "..."
+        
+        return clean_text
+    
+    async def _extract_job_data(self, text: str, hint: dict | None = None) -> dict:
+        """
+        Use Azure OpenAI to extract structured job data from clean text.
+        Organizes data into categories useful for CV tailoring.
+        
+        Args:
+            text: Cleaned text from page
+            hint: Optional partial data from structured metadata
+        """
+        hint_text = ""
+        if hint:
+            hint_text = f"\nPartial data found: {json.dumps(hint)}\nUse this as a starting point but extract full details from the text."
+        
+        prompt = f"""Extract and structure the job posting information from the following text.{hint_text}
+
+Create a comprehensive job description organized into clear sections for CV tailoring.
+
+Return a JSON object with these fields:
+- title: Job title
+- company: Company name
+- description: A well-structured description with the following sections:
+
+## About the Role
+[Brief overview of the position]
+
+## Key Responsibilities
+- [Bullet point 1]
+- [Bullet point 2]
+...
+
+## Required Qualifications
+- [Must-have qualification 1]
+- [Must-have qualification 2]
+...
+
+## Preferred Qualifications
+- [Nice-to-have skill 1]
+- [Nice-to-have skill 2]
+...
+
+## Technical Skills
+- [Technical skill 1]
+- [Technical skill 2]
+...
+
+Extract all relevant information and organize it properly. Be comprehensive - include ALL qualifications, requirements, and skills mentioned.
+
+Text:
+{text}
+
+Return ONLY valid JSON with the structure: {{"title": "...", "company": "...", "description": "..."}}"""
+
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.deployment,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that extracts structured data from job postings. Always return valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=2000
+            )
+            
+            result = response.choices[0].message.content.strip()
+            
+            # Remove markdown code blocks if present
+            if result.startswith('```'):
+                result = result.split('```')[1]
+                if result.startswith('json'):
+                    result = result[4:]
+                result = result.strip()
+            
+            # Parse JSON
+            job_data = json.loads(result)
+            
+            # Validate required fields
+            if not all(key in job_data for key in ['title', 'company', 'description']):
+                raise ValueError("Missing required fields in extracted data")
+            
+            return job_data
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ Failed to parse AI response as JSON: {e}")
+            raise ValueError("Failed to extract job data: Invalid AI response format")
+        except Exception as e:
+            print(f"❌ Error extracting job data: {e}")
+            raise ValueError(f"Failed to extract job data: {str(e)}")
+
+
+# Singleton instance
+job_scraper_service = JobScraperService()

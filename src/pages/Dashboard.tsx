@@ -3,11 +3,21 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
-import { FileText, Plus, Briefcase, Upload, AlertCircle } from 'lucide-react';
+import { FileText, Plus, Briefcase, Upload, AlertCircle, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cvAPI, jobsAPI, type CV, type Job } from '@/lib/api';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -15,6 +25,8 @@ export default function Dashboard() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in
@@ -55,6 +67,23 @@ export default function Dashboard() {
       toast.error(message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDeleteJob() {
+    if (!jobToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await jobsAPI.delete(jobToDelete.id);
+      toast.success('Job deleted successfully');
+      setJobs(jobs.filter(j => j.id !== jobToDelete.id));
+      setJobToDelete(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete job';
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -109,7 +138,7 @@ export default function Dashboard() {
               {latestCV ? (
                 <>
                   <div className="p-4 bg-muted rounded-lg">
-                    <p className="font-medium text-foreground">{latestCV.filename}</p>
+                    <p className="font-medium text-foreground">{latestCV.original_filename}</p>
                     <p className="text-sm text-muted-foreground">
                       {(latestCV.file_size / 1024).toFixed(0)} KB • {latestCV.status}
                     </p>
@@ -159,17 +188,32 @@ export default function Dashboard() {
               {jobs.length > 0 ? (
                 <div className="space-y-2">
                   {jobs.slice(0, 3).map((job) => (
-                    <Link key={job.id} to={`/jobs/${job.id}/tailor`}>
-                      <div className="p-4 border border-border rounded-lg hover:bg-muted transition-colors cursor-pointer">
-                        <div className="flex items-start justify-between">
+                    <div key={job.id} className="p-4 border border-border rounded-lg hover:bg-muted transition-colors group">
+                      <div className="flex items-start justify-between gap-2">
+                        <Link to={`/jobs/${job.id}/tailor`} className="flex-1">
                           <div>
                             <p className="font-medium text-foreground">{job.title}</p>
                             <p className="text-sm text-muted-foreground">{job.company}</p>
                           </div>
-                          <Button size="sm" variant="ghost">Tailor CV</Button>
+                        </Link>
+                        <div className="flex gap-1">
+                          <Link to={`/jobs/${job.id}/tailor`}>
+                            <Button size="sm" variant="ghost">Tailor CV</Button>
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setJobToDelete(job);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                    </Link>
+                    </div>
                   ))}
                   {jobs.length > 3 && (
                     <p className="text-sm text-muted-foreground text-center pt-2">
@@ -219,6 +263,28 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </main>
+
+      <AlertDialog open={!!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{jobToDelete?.title}" at {jobToDelete?.company}?
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteJob}
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
