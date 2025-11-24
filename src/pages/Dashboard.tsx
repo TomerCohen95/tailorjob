@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
@@ -21,13 +21,27 @@ import {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [cvs, setCVs] = useState<CV[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showCVHistory, setShowCVHistory] = useState(false);
+  const [showCVHistory, setShowCVHistory] = useState(searchParams.get('showHistory') === 'true');
+  const [cvToDelete, setCvToDelete] = useState<CV | null>(null);
+  const [isDeletingCV, setIsDeletingCV] = useState(false);
+
+  // Update URL when history view changes
+  const toggleCVHistory = () => {
+    const newValue = !showCVHistory;
+    setShowCVHistory(newValue);
+    if (newValue) {
+      setSearchParams({ showHistory: 'true' });
+    } else {
+      setSearchParams({});
+    }
+  };
 
   useEffect(() => {
     // Check if user is logged in
@@ -96,6 +110,23 @@ export default function Dashboard() {
     }
   }
 
+  async function handleDeleteCV() {
+    if (!cvToDelete) return;
+
+    setIsDeletingCV(true);
+    try {
+      await cvAPI.delete(cvToDelete.id);
+      toast.success('CV deleted successfully');
+      setCVs(cvs.filter(cv => cv.id !== cvToDelete.id));
+      setCvToDelete(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete CV';
+      toast.error(message);
+    } finally {
+      setIsDeletingCV(false);
+    }
+  }
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'parsed':
@@ -123,6 +154,24 @@ export default function Dashboard() {
   };
 
   const primaryCV = cvs.find(cv => cv.is_primary) || cvs[0]; // Primary CV or most recent
+  
+  // Group CVs by file_hash to show only unique uploads
+  // Keep the most recent version of each unique CV
+  const uniqueCVs = cvs.reduce((acc, cv) => {
+    const hash = cv.file_hash || cv.id; // Fallback to ID if no hash
+    const existing = acc.get(hash);
+    
+    // Keep the CV with the most recent created_at date
+    if (!existing || new Date(cv.created_at) > new Date(existing.created_at)) {
+      acc.set(hash, cv);
+    }
+    
+    return acc;
+  }, new Map<string, CV>());
+  
+  const displayCVs = Array.from(uniqueCVs.values()).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
 
   const handleSetPrimary = async (cvId: string) => {
     try {
@@ -178,7 +227,7 @@ export default function Dashboard() {
                     <CardDescription className="text-xs mt-1">
                       {cvs.length} uploads •{' '}
                       <button
-                        onClick={() => setShowCVHistory(!showCVHistory)}
+                        onClick={toggleCVHistory}
                         className="text-primary hover:underline"
                       >
                         {showCVHistory ? 'Hide history' : 'View history'}
@@ -298,7 +347,7 @@ export default function Dashboard() {
         </div>
 
         {/* CV Upload History - Separate Section */}
-        {cvs.length > 1 && showCVHistory && (
+        {displayCVs.length > 1 && showCVHistory && (
           <Card className="shadow-md mb-8">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -306,13 +355,13 @@ export default function Dashboard() {
                   <History className="h-5 w-5 text-primary" />
                   <div>
                     <CardTitle>CV Upload History</CardTitle>
-                    <CardDescription>All your uploaded CVs ({cvs.length} total)</CardDescription>
+                    <CardDescription>All your uploaded CVs ({displayCVs.length} unique uploads)</CardDescription>
                   </div>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowCVHistory(false)}
+                  onClick={toggleCVHistory}
                 >
                   <ChevronUp className="h-4 w-4 mr-1" />
                   Hide
@@ -321,7 +370,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3">
-                {cvs.map((cv, index) => (
+                {displayCVs.map((cv, index) => (
                   <div
                     key={cv.id}
                     className="p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
@@ -334,9 +383,9 @@ export default function Dashboard() {
                             <p className="font-medium text-foreground truncate">
                               {cv.original_filename}
                             </p>
-                            {index === 0 && (
+                            {cv.is_primary && (
                               <span className="px-2 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded shrink-0">
-                                Current
+                                Primary
                               </span>
                             )}
                           </div>
@@ -370,7 +419,7 @@ export default function Dashboard() {
                           </Button>
                         )}
                         {cv.status === 'parsed' && (
-                          <Link to="/cv-preview">
+                          <Link to={`/cv-preview?cvId=${cv.id}&returnTo=${encodeURIComponent('/dashboard?showHistory=true')}`}>
                             <Button size="sm" variant="outline">
                               View
                             </Button>
@@ -393,6 +442,16 @@ export default function Dashboard() {
                             Retry
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setCvToDelete(cv)}
+                          disabled={cv.is_primary}
+                          title={cv.is_primary ? "Cannot delete primary CV" : "Delete CV"}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -450,6 +509,29 @@ export default function Dashboard() {
               className="bg-destructive hover:bg-destructive/90"
             >
               {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* CV Delete Confirmation Dialog */}
+      <AlertDialog open={!!cvToDelete} onOpenChange={(open) => !open && setCvToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete CV?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{cvToDelete?.original_filename}"?
+              This will permanently remove the CV and all its parsed data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingCV}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCV}
+              disabled={isDeletingCV}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeletingCV ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

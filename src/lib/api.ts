@@ -56,6 +56,7 @@ export interface CV {
   mime_type: string;
   status: 'uploaded' | 'parsing' | 'parsed' | 'error';
   is_primary?: boolean;
+  file_hash?: string;
   created_at: string;
   updated_at: string;
 }

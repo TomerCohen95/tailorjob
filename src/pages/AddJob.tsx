@@ -6,11 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
-import { ArrowRight, Sparkles, Link as LinkIcon, Loader2, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Sparkles, Link as LinkIcon, Loader2, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { jobsAPI } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function AddJob() {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ export default function AddJob() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const [scrapedData, setScrapedData] = useState<any>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +74,7 @@ export default function AddJob() {
     }
 
     setIsFetchingUrl(true);
+    setUrlError(null); // Clear previous errors
 
     try {
       toast.info('Fetching job details...', {
@@ -114,8 +117,14 @@ export default function AddJob() {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to fetch job details';
-      toast.error('Fetch failed', {
-        description: message
+      
+      // Set error state for visible alert
+      setUrlError(message);
+      
+      // Also show toast for immediate feedback
+      toast.error('❌ Invalid Job URL', {
+        description: message,
+        duration: 6000,
       });
     } finally {
       setIsFetchingUrl(false);
@@ -301,6 +310,25 @@ export default function AddJob() {
                       Paste a link to automatically extract job details
                     </p>
                   </div>
+
+                  {urlError && (
+                    <Alert variant="destructive" className="border-2 border-red-500">
+                      <XCircle className="h-5 w-5" />
+                      <AlertTitle className="text-lg font-semibold">Invalid Job URL</AlertTitle>
+                      <AlertDescription className="mt-2 text-base">
+                        <p className="mb-3">{urlError}</p>
+                        <div className="bg-red-50 dark:bg-red-950/20 p-3 rounded-md">
+                          <p className="text-sm font-medium mb-2">💡 For LinkedIn jobs:</p>
+                          <ol className="text-sm space-y-1 list-decimal list-inside">
+                            <li>Open the job posting in LinkedIn</li>
+                            <li>Click the job to view its full details</li>
+                            <li>Copy the URL (should look like: <code className="text-xs bg-red-100 dark:bg-red-900/30 px-1 py-0.5 rounded">linkedin.com/jobs/view/[job-id]</code>)</li>
+                            <li>Paste it here</li>
+                          </ol>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
                   <div className="p-4 bg-muted rounded-lg border">
                     <p className="text-sm text-muted-foreground">

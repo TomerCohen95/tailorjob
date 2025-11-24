@@ -28,12 +28,13 @@ export default function CVPreview() {
   useEffect(() => {
     const fetchCVData = async () => {
       if (!cvId) {
-        // If no cvId, fetch the most recent CV
+        // If no cvId, fetch the primary CV (or most recent if no primary)
         try {
           const cvs = await apiClient.getCVs();
           if (cvs.length > 0) {
-            const latestCV = cvs[0];
-            const data = await apiClient.getCV(latestCV.id);
+            // Find primary CV or fall back to most recent
+            const primaryCV = cvs.find(cv => cv.is_primary) || cvs[0];
+            const data = await apiClient.getCV(primaryCV.id);
             setCvStatus(data.cv?.status || 'unknown');
             
             if (data.sections) {

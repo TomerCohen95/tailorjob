@@ -43,6 +43,8 @@ class JobScraperService:
         # Step 2: Try structured data extraction first (cheaper)
         structured_data = self._extract_structured_data(html)
         if structured_data and self._is_complete_job_data(structured_data):
+            # Validate before returning
+            self._validate_job_page(html, structured_data)
             print(f"✅ Extracted from structured data: {structured_data.get('title', 'N/A')}")
             return structured_data
         
@@ -51,6 +53,10 @@ class JobScraperService:
         
         # If we have partial structured data, pass it as a hint to AI
         job_data = await self._extract_job_data(clean_text, hint=structured_data)
+        
+        # Step 4: Validate the extracted data
+        print(f"🔍 Validating job data: title='{job_data.get('title', 'N/A')}'")
+        self._validate_job_page(html, job_data)
         
         return job_data
     
@@ -142,6 +148,83 @@ class JobScraperService:
             return False
         return bool(data.get('title') and data.get('company') and
                    data.get('description') and len(data.get('description', '')) > 100)
+    
+    def _validate_job_page(self, html: str, job_data: dict) -> None:
+        """
+        Validate that the page is actually a job posting, not a login/error page.
+        Raises ValueError with user-friendly message if invalid.
+        """
+        title = str(job_data.get('title', '')).lower()
+        company = str(job_data.get('company', '')).lower()
+        description = str(job_data.get('description', '')).lower()
+        
+        # Red flags in title that indicate non-job pages (be specific to avoid false positives)
+        invalid_title_patterns = [
+            'login', 'sign in', 'sign up', 'log in', 'signin',
+            'register', 'authentication',
+            'error', '404', '403', 'access denied', 'page not found',
+            'redirect', 'loading', 'please wait'
+        ]
+        
+        # Only flag if the keyword is a significant part of the title
+        for keyword in invalid_title_patterns:
+            # Check if keyword appears as whole word or with common separators
+            if re.search(rf'\b{keyword}\b', title) or f' {keyword} ' in f' {title} ':
+                # Extra check: if it's "login" but also has job-related words, it's probably a real job
+                job_keywords = ['engineer', 'developer', 'manager', 'analyst', 'designer', 'lead', 'senior', 'junior']
+                has_job_keyword = any(job_word in title for job_word in job_keywords)
+                
+                if not has_job_keyword:
+                    raise ValueError(
+                        f"Invalid job posting - the page title contains '{keyword}'. "
+                        f"This appears to be a login, error, or navigation page. "
+                        f"Please use a direct link to a specific job posting."
+                    )
+        
+        # Check if company is same as title (common for login pages)
+        if company and title and company == title and 'linkedin' in company:
+            raise ValueError(
+                "Invalid job posting - this appears to be a site navigation page, not a job posting. "
+                "Please use a direct link to a specific job posting."
+            )
+        
+        # Check for login-specific phrases in description (need multiple matches to be sure)
+        login_phrases = [
+            'user agreement', 'privacy policy', 'cookie policy',
+            'forgot password', 'create account', 'sign in with',
+            'enter your email', 'enter your password', 'reset password'
+        ]
+        
+        login_phrase_count = sum(1 for phrase in login_phrases if phrase in description)
+        if login_phrase_count >= 3:  # Raised threshold from 2 to 3
+            raise ValueError(
+                "This appears to be a login or authentication page, not a job posting. "
+                "Please use the direct job posting URL instead of a collection or list page."
+            )
+        
+        # LinkedIn-specific: Check URL structure (only check for obvious login forms)
+        if 'linkedin.com' in html.lower():
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            # Only flag if we find BOTH email AND password inputs (clear login page)
+            email_input = soup.find('input', {'type': 'email'}) or soup.find('input', {'name': re.compile(r'^(email|username)$', re.I)})
+            password_input = soup.find('input', {'type': 'password'})
+            login_button = soup.find('button', string=re.compile(r'sign in|log in', re.I))
+            
+            if email_input and password_input and login_button:
+                raise ValueError(
+                    "This LinkedIn URL requires login. "
+                    "Please open the job in LinkedIn, then copy the direct job URL "
+                    "(it should look like: linkedin.com/jobs/view/[job-id])"
+                )
+        
+        # Only validate description length if it's extremely short (clearly not a job)
+        if len(description) < 50:
+            raise ValueError(
+                "The job description is missing or extremely short. "
+                "This may not be a valid job posting URL. "
+                "Please use the direct link to a specific job posting."
+            )
     
     def _extract_clean_text(self, html: str) -> str:
         """
