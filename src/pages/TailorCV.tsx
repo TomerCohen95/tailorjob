@@ -6,10 +6,11 @@ import { JobDescriptionPanel } from '@/components/cv/JobDescriptionPanel';
 import { CVEditor } from '@/components/cv/CVEditor';
 import { ChatPanel } from '@/components/cv/ChatPanel';
 import { RevisionHistory } from '@/components/cv/RevisionHistory';
-import { Save, Download, History, Loader2 } from 'lucide-react';
+import { Save, Download, History, Loader2, FileText, Edit3 } from 'lucide-react';
 import { mockTailoredCV, mockChatMessages, mockRevisions, ChatMessage, Revision } from '@/lib/mockData';
 import { toast } from 'sonner';
 import { jobsAPI, type Job } from '@/lib/api';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function TailorCV() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,7 @@ export default function TailorCV() {
   const [messages, setMessages] = useState<ChatMessage[]>(mockChatMessages);
   const [revisions, setRevisions] = useState<Revision[]>(mockRevisions);
   const [showHistory, setShowHistory] = useState(false);
+  const [activeTab, setActiveTab] = useState<'job' | 'tailor'>('job');
 
   useEffect(() => {
     if (!id) {
@@ -158,40 +160,75 @@ export default function TailorCV() {
         </div>
       </div>
 
-      {/* Main Editor Layout */}
-      <div className="flex h-[calc(100vh-180px)]">
-        {/* Job Description Panel - Left */}
-        <div className="w-80 hidden lg:block">
-          <JobDescriptionPanel job={job} />
-        </div>
-
-        {/* CV Editor - Center */}
-        <div className="flex-1 border-r border-border">
-          <CVEditor content={cvContent} onChange={setCvContent} />
-        </div>
-
-        {/* Chat Panel - Right */}
-        <div className="w-96 hidden xl:block">
-          <ChatPanel messages={messages} onSendMessage={handleSendMessage} />
-        </div>
-
-        {/* Revision History - Slide-in Panel */}
-        {showHistory && (
-          <div className="fixed right-0 top-[180px] bottom-0 z-50 shadow-2xl animate-slide-in">
-            <RevisionHistory
-              revisions={revisions}
-              onSelectRevision={handleSelectRevision}
-            />
+      {/* Tabbed Interface */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'job' | 'tailor')} className="flex-1">
+        <div className="border-b border-border bg-card">
+          <div className="container mx-auto px-4">
+            <TabsList className="grid w-full max-w-md grid-cols-2 bg-transparent">
+              <TabsTrigger
+                value="job"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                View Job Description
+              </TabsTrigger>
+              <TabsTrigger
+                value="tailor"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                Tailor CV
+              </TabsTrigger>
+            </TabsList>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Mobile Warning */}
-      <div className="lg:hidden p-4 bg-accent-light border-t border-accent/20">
-        <p className="text-sm text-center text-muted-foreground">
-          For the best experience, use a larger screen to access all editor features
-        </p>
-      </div>
+        {/* Job Description View */}
+        <TabsContent value="job" className="mt-0">
+          <div className="container mx-auto px-4 py-8">
+            <div className="max-w-5xl mx-auto">
+              <JobDescriptionPanel job={job} />
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* CV Tailoring View */}
+        <TabsContent value="tailor" className="mt-0">
+          <div className="flex h-[calc(100vh-240px)]">
+            {/* Job Description Panel - Left (smaller in tailor view) */}
+            <div className="w-80 hidden lg:block border-r border-border overflow-y-auto">
+              <JobDescriptionPanel job={job} />
+            </div>
+
+            {/* CV Editor - Center */}
+            <div className="flex-1 border-r border-border">
+              <CVEditor content={cvContent} onChange={setCvContent} />
+            </div>
+
+            {/* Chat Panel - Right */}
+            <div className="w-96 hidden xl:block">
+              <ChatPanel messages={messages} onSendMessage={handleSendMessage} />
+            </div>
+
+            {/* Revision History - Slide-in Panel */}
+            {showHistory && (
+              <div className="fixed right-0 top-[240px] bottom-0 z-50 shadow-2xl animate-slide-in">
+                <RevisionHistory
+                  revisions={revisions}
+                  onSelectRevision={handleSelectRevision}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Warning */}
+          <div className="lg:hidden p-4 bg-accent-light border-t border-accent/20">
+            <p className="text-sm text-center text-muted-foreground">
+              For the best experience, use a larger screen to access all editor features
+            </p>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
