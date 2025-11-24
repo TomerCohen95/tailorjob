@@ -1,5 +1,6 @@
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sparkles, Wand2, Zap } from 'lucide-react';
+import { Card } from '@/components/ui/card';
 
 interface CVEditorProps {
   content: string;
@@ -11,16 +12,61 @@ export function CVEditor({ content, onChange }: CVEditorProps) {
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-border bg-card">
         <h3 className="font-semibold text-foreground">Tailored CV</h3>
-        <p className="text-sm text-muted-foreground">Edit your tailored resume</p>
+        <p className="text-sm text-muted-foreground">AI-powered CV customization</p>
       </div>
       
-      <ScrollArea className="flex-1 p-6">
-        <Textarea
-          value={content}
-          onChange={(e) => onChange(e.target.value)}
-          className="min-h-[800px] font-mono text-sm leading-relaxed resize-none border-0 focus-visible:ring-0"
-          placeholder="Your tailored CV will appear here..."
-        />
+      <ScrollArea className="flex-1">
+        <div className="flex items-center justify-center min-h-full p-8">
+          <Card className="max-w-md p-8 text-center space-y-6 border-2 border-dashed">
+            <div className="flex justify-center">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary to-accent blur-2xl opacity-20 animate-pulse"></div>
+                <div className="relative bg-gradient-to-br from-primary to-accent p-4 rounded-2xl">
+                  <Sparkles className="h-12 w-12 text-white" />
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-foreground">
+                AI CV Tailoring
+              </h3>
+              <p className="text-muted-foreground">
+                Coming Soon
+              </p>
+            </div>
+            
+            <div className="space-y-3 text-sm text-muted-foreground pt-4">
+              <div className="flex items-start gap-3 text-left">
+                <Wand2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-foreground">Smart Analysis</p>
+                  <p className="text-xs">AI will analyze your CV and the job requirements</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3 text-left">
+                <Zap className="h-5 w-5 text-accent shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-foreground">Instant Tailoring</p>
+                  <p className="text-xs">Automatically highlight relevant skills and experience</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3 text-left">
+                <Sparkles className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-foreground">Perfect Match</p>
+                  <p className="text-xs">Optimize your CV to match the job description</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-4 text-xs text-muted-foreground">
+              This powerful feature is currently in development
+            </div>
+          </Card>
+        </div>
       </ScrollArea>
     </div>
   );

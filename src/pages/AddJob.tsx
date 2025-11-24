@@ -94,7 +94,8 @@ export default function AddJob() {
       setScrapedData({
         title: jobDetails.title || '',
         company: jobDetails.company || '',
-        parsedDescription
+        parsedDescription,
+        id: jobDetails.id // Store the saved job ID
       });
       
       // Convert structured data to plain text for storage
@@ -108,8 +109,8 @@ export default function AddJob() {
         description: descriptionText
       });
       
-      toast.success('Job details extracted!', {
-        description: 'Review the information below'
+      toast.success('Job saved successfully!', {
+        description: `${jobDetails.title} at ${jobDetails.company} - Click "Continue to Tailor" below`
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to fetch job details';
@@ -346,12 +347,11 @@ export default function AddJob() {
                       Try Another URL
                     </Button>
                     <Button
-                      onClick={handleSubmit}
-                      disabled={isSubmitting}
+                      onClick={() => navigate(`/jobs/${scrapedData.id}/tailor`)}
                       className="flex-1 bg-gradient-to-r from-primary to-accent hover:opacity-90"
                     >
                       <Sparkles className="mr-2 h-4 w-4" />
-                      {isSubmitting ? 'Saving...' : 'Save & Tailor My CV'}
+                      Continue to Tailor
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>

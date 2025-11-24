@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
-import { FileText, Plus, Briefcase, Upload, AlertCircle, Trash2 } from 'lucide-react';
+import { FileText, Plus, Briefcase, Upload, AlertCircle, Trash2, History, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cvAPI, jobsAPI, type CV, type Job } from '@/lib/api';
 import { toast } from 'sonner';
@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showCVHistory, setShowCVHistory] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in
@@ -63,6 +64,14 @@ export default function Dashboard() {
       setJobs(jobsData);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load data';
+      
+      // If authentication error, redirect to login
+      if (message.includes('Not authenticated') || message.includes('401') || message.includes('403')) {
+        await supabase.auth.signOut();
+        navigate('/login');
+        return;
+      }
+      
       setError(message);
       toast.error(message);
     } finally {
@@ -87,7 +96,44 @@ export default function Dashboard() {
     }
   }
 
-  const latestCV = cvs[0]; // Most recent CV
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'parsed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'parsing':
+        return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+      case 'error':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'parsed':
+        return 'Parsed';
+      case 'parsing':
+        return 'Parsing...';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Uploaded';
+    }
+  };
+
+  const primaryCV = cvs.find(cv => cv.is_primary) || cvs[0]; // Primary CV or most recent
+
+  const handleSetPrimary = async (cvId: string) => {
+    try {
+      await cvAPI.setPrimary(cvId);
+      toast.success('CV set as primary');
+      loadData(); // Reload to update UI
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to set CV as primary';
+      toast.error(message);
+    }
+  };
 
   if (loading) {
     return (
@@ -126,22 +172,40 @@ export default function Dashboard() {
                 <div className="p-2 rounded-lg bg-primary-light">
                   <FileText className="h-5 w-5 text-primary" />
                 </div>
-                <CardTitle>Your CV</CardTitle>
+                <div>
+                  <CardTitle>Your CV</CardTitle>
+                  {cvs.length > 1 && (
+                    <CardDescription className="text-xs mt-1">
+                      {cvs.length} uploads •{' '}
+                      <button
+                        onClick={() => setShowCVHistory(!showCVHistory)}
+                        className="text-primary hover:underline"
+                      >
+                        {showCVHistory ? 'Hide history' : 'View history'}
+                      </button>
+                    </CardDescription>
+                  )}
+                </div>
               </div>
               <CardDescription>
-                {latestCV
-                  ? `Last uploaded: ${new Date(latestCV.created_at).toLocaleDateString()}`
+                {primaryCV
+                  ? `Last uploaded: ${new Date(primaryCV.created_at).toLocaleDateString()}`
                   : 'No CV uploaded yet'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {latestCV ? (
+              {primaryCV ? (
                 <>
                   <div className="p-4 bg-muted rounded-lg">
-                    <p className="font-medium text-foreground">{latestCV.original_filename}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(latestCV.file_size / 1024).toFixed(0)} KB • {latestCV.status}
-                    </p>
+                    <div className="flex items-start gap-2">
+                      {getStatusIcon(primaryCV.status)}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground truncate">{primaryCV.original_filename}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {(primaryCV.file_size / 1024).toFixed(0)} KB • {getStatusText(primaryCV.status)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Link to="/cv-preview" className="flex-1">
@@ -232,6 +296,111 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* CV Upload History - Separate Section */}
+        {cvs.length > 1 && showCVHistory && (
+          <Card className="shadow-md mb-8">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <History className="h-5 w-5 text-primary" />
+                  <div>
+                    <CardTitle>CV Upload History</CardTitle>
+                    <CardDescription>All your uploaded CVs ({cvs.length} total)</CardDescription>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCVHistory(false)}
+                >
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                  Hide
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3">
+                {cvs.map((cv, index) => (
+                  <div
+                    key={cv.id}
+                    className="p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {getStatusIcon(cv.status)}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-medium text-foreground truncate">
+                              {cv.original_filename}
+                            </p>
+                            {index === 0 && (
+                              <span className="px-2 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded shrink-0">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                            <span>
+                              {new Date(cv.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            <span>{(cv.file_size / 1024).toFixed(0)} KB</span>
+                            <span>{getStatusText(cv.status)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        {cv.is_primary ? (
+                          <span className="px-3 py-1.5 text-xs font-medium bg-primary/10 text-primary rounded border border-primary/20">
+                            Active
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSetPrimary(cv.id)}
+                          >
+                            Set as Primary
+                          </Button>
+                        )}
+                        {cv.status === 'parsed' && (
+                          <Link to="/cv-preview">
+                            <Button size="sm" variant="outline">
+                              View
+                            </Button>
+                          </Link>
+                        )}
+                        {cv.status === 'error' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await cvAPI.reparse(cv.id);
+                                toast.success('Re-parsing initiated');
+                                loadData();
+                              } catch (error) {
+                                toast.error('Failed to re-parse CV');
+                              }
+                            }}
+                          >
+                            Retry
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick Actions */}
         <Card className="bg-gradient-to-br from-primary-light to-accent-light border-0">

@@ -55,6 +55,7 @@ export interface CV {
   file_size: number;
   mime_type: string;
   status: 'uploaded' | 'parsing' | 'parsed' | 'error';
+  is_primary?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -109,6 +110,15 @@ export const cvAPI = {
    */
   async reparse(cvId: string): Promise<{ cv_id: string; job_id: string; status: string; message: string }> {
     return fetchAPI(`/cv/${cvId}/reparse`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Set a CV as primary
+   */
+  async setPrimary(cvId: string): Promise<{ message: string; cv_id: string }> {
+    return fetchAPI(`/cv/${cvId}/set-primary`, {
       method: 'POST',
     });
   },
@@ -196,9 +206,9 @@ export const jobsAPI = {
   },
 
   /**
-   * Scrape job details from a URL
+   * Scrape job details from a URL and save to database
    */
-  async scrapeFromUrl(url: string): Promise<{ title: string; company: string; description: string }> {
+  async scrapeFromUrl(url: string): Promise<{ title: string; company: string; description: string; id: string; saved: boolean }> {
     return fetchAPI('/jobs/scrape', {
       method: 'POST',
       body: JSON.stringify({ url }),

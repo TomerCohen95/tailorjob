@@ -62,10 +62,25 @@ class JobScraperService:
             'Accept-Language': 'en-US,en;q=0.9',
         }
         
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
-            response = await client.get(url, headers=headers)
-            response.raise_for_status()
-            return response.text
+        try:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+                print(f"🌐 Fetching URL: {url}")
+                response = await client.get(url, headers=headers)
+                print(f"📥 Response status: {response.status_code}")
+                response.raise_for_status()
+                return response.text
+        except httpx.TimeoutException as e:
+            print(f"⏱️ Timeout error fetching {url}: {str(e)}")
+            raise ValueError(f"Connection timeout while fetching job posting. The site may be slow or unreachable.")
+        except httpx.HTTPStatusError as e:
+            print(f"🚫 HTTP error {e.response.status_code} for {url}")
+            raise ValueError(f"Failed to fetch job posting: HTTP {e.response.status_code}")
+        except httpx.ConnectError as e:
+            print(f"🔌 Connection error for {url}: {str(e)}")
+            raise ValueError(f"Cannot connect to job posting site. Please check the URL and try again.")
+        except Exception as e:
+            print(f"❌ Unexpected error fetching {url}: {type(e).__name__}: {str(e)}")
+            raise ValueError(f"Failed to fetch job posting: {str(e)}")
     
     def _extract_structured_data(self, html: str) -> dict | None:
         """
@@ -216,6 +231,10 @@ Text:
 Return ONLY valid JSON with the structure: {{"title": "...", "company": "...", "description": "..."}}"""
 
         try:
+            print(f"🤖 Calling Azure OpenAI with deployment: {self.deployment}")
+            print(f"🔑 Endpoint configured: {settings.AZURE_OPENAI_ENDPOINT or '(empty)'}")
+            print(f"🔑 API key configured: {'Yes' if settings.AZURE_OPENAI_KEY else 'No (empty)'}")
+            
             response = await self.client.chat.completions.create(
                 model=self.deployment,
                 messages=[

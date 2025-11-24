@@ -201,6 +201,30 @@ async def reparse_cv(cv_id: str, user = Depends(get_current_user)):
         "message": "Re-parsing initiated"
     }
 
+@router.post("/{cv_id}/set-primary")
+async def set_primary_cv(cv_id: str, user = Depends(get_current_user)):
+    """Set a CV as the primary/active CV"""
+    # Verify CV exists and belongs to user
+    cv_result = supabase.table("cvs")\
+        .select("*")\
+        .eq("id", cv_id)\
+        .eq("user_id", user.id)\
+        .single()\
+        .execute()
+    
+    if not cv_result.data:
+        raise HTTPException(status_code=404, detail="CV not found")
+    
+    # Set as primary (trigger will unset others automatically)
+    supabase.table("cvs").update({
+        "is_primary": True
+    }).eq("id", cv_id).execute()
+    
+    return {
+        "message": "CV set as primary successfully",
+        "cv_id": cv_id
+    }
+
 @router.delete("/{cv_id}")
 async def delete_cv(cv_id: str, user = Depends(get_current_user)):
     """Delete a CV and its associated data"""
