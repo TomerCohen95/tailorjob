@@ -64,6 +64,14 @@ export default function Dashboard() {
       setJobs(jobsData);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load data';
+      
+      // If authentication error, redirect to login
+      if (message.includes('Not authenticated') || message.includes('401') || message.includes('403')) {
+        await supabase.auth.signOut();
+        navigate('/login');
+        return;
+      }
+      
       setError(message);
       toast.error(message);
     } finally {

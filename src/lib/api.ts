@@ -206,9 +206,9 @@ export const jobsAPI = {
   },
 
   /**
-   * Scrape job details from a URL
+   * Scrape job details from a URL and save to database
    */
-  async scrapeFromUrl(url: string): Promise<{ title: string; company: string; description: string }> {
+  async scrapeFromUrl(url: string): Promise<{ title: string; company: string; description: string; id: string; saved: boolean }> {
     return fetchAPI('/jobs/scrape', {
       method: 'POST',
       body: JSON.stringify({ url }),

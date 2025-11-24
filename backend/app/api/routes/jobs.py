@@ -106,12 +106,35 @@ async def scrape_job(
     user = Depends(get_current_user)
 ):
     """
-    Scrape job details from a URL.
+    Scrape job details from a URL and save to database.
     Uses BeautifulSoup + Azure OpenAI for cost-effective extraction.
     """
     try:
+        import json
         job_data = await job_scraper_service.scrape_job(request.url)
-        return job_data
+        
+        # Store description as JSON string if it's structured, otherwise as plain text
+        description = job_data.get('description', '')
+        if isinstance(description, dict):
+            description_json = json.dumps(description)
+        else:
+            description_json = description
+        
+        # Save to database
+        result = supabase.table("jobs").insert({
+            "user_id": user.id,
+            "title": job_data.get('title', ''),
+            "company": job_data.get('company', ''),
+            "description": description_json,
+            "url": request.url
+        }).execute()
+        
+        # Return both scraped data and saved job
+        return {
+            **job_data,
+            "id": result.data[0]["id"],
+            "saved": True
+        }
     except Exception as e:
         raise HTTPException(
             status_code=400,
