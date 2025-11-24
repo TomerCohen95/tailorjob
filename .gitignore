@@ -33,6 +33,8 @@ __pycache__/
 backend/venv/
 backend/.env
 *.egg-info/
+logs/
+*.pid
 .installed.cfg
 *.egg
 MANIFEST
