@@ -6,10 +6,11 @@ import { JobDescriptionPanel } from '@/components/cv/JobDescriptionPanel';
 import { CVEditor } from '@/components/cv/CVEditor';
 import { ChatPanel } from '@/components/cv/ChatPanel';
 import { RevisionHistory } from '@/components/cv/RevisionHistory';
-import { Save, Download, History, Loader2, FileText, Edit3 } from 'lucide-react';
+import { MatchScorePanel } from '@/components/cv/MatchScorePanel';
+import { Save, Download, History, Loader2, FileText, Edit3, Target } from 'lucide-react';
 import { mockTailoredCV, mockChatMessages, mockRevisions, ChatMessage, Revision } from '@/lib/mockData';
 import { toast } from 'sonner';
-import { jobsAPI, type Job } from '@/lib/api';
+import { jobsAPI, cvAPI, matchingAPI, type Job, type MatchScore } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function TailorCV() {
@@ -21,7 +22,10 @@ export default function TailorCV() {
   const [messages, setMessages] = useState<ChatMessage[]>(mockChatMessages);
   const [revisions, setRevisions] = useState<Revision[]>(mockRevisions);
   const [showHistory, setShowHistory] = useState(false);
-  const [activeTab, setActiveTab] = useState<'job' | 'tailor'>('job');
+  const [activeTab, setActiveTab] = useState<'job' | 'tailor' | 'score'>('job');
+  const [matchScore, setMatchScore] = useState<MatchScore | null>(null);
+  const [analyzingMatch, setAnalyzingMatch] = useState(false);
+  const [primaryCvId, setPrimaryCvId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -31,7 +35,14 @@ export default function TailorCV() {
     }
 
     loadJob();
+    loadPrimaryCv();
   }, [id, navigate]);
+
+  useEffect(() => {
+    if (id && primaryCvId) {
+      loadMatchScore();
+    }
+  }, [id, primaryCvId]);
 
   async function loadJob() {
     try {
@@ -42,10 +53,49 @@ export default function TailorCV() {
       const message = error instanceof Error ? error.message : 'Failed to load job';
       console.error('Failed to load job:', error);
       toast.error(message);
-      // Don't auto-redirect, let user see the error
       setJob(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadPrimaryCv() {
+    try {
+      const cvs = await cvAPI.list();
+      const primary = cvs.find(cv => cv.is_primary);
+      if (primary) {
+        setPrimaryCvId(primary.id);
+      }
+    } catch (error) {
+      console.error('Failed to load primary CV:', error);
+    }
+  }
+
+  async function loadMatchScore() {
+    try {
+      const score = await matchingAPI.getScore(primaryCvId!, id!);
+      setMatchScore(score);
+    } catch (error) {
+      console.error('Failed to load match score:', error);
+    }
+  }
+
+  async function handleAnalyzeMatch() {
+    if (!primaryCvId || !id) {
+      toast.error('Please upload a CV first');
+      return;
+    }
+    
+    try {
+      setAnalyzingMatch(true);
+      const score = await matchingAPI.analyze(primaryCvId, id);
+      setMatchScore(score);
+      toast.success('Match analysis complete!');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to analyze match';
+      toast.error(message);
+    } finally {
+      setAnalyzingMatch(false);
     }
   }
 
@@ -161,16 +211,23 @@ export default function TailorCV() {
       </div>
 
       {/* Tabbed Interface */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'job' | 'tailor')} className="flex-1">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'job' | 'tailor' | 'score')} className="flex-1">
         <div className="border-b border-border bg-card">
           <div className="container mx-auto px-4">
-            <TabsList className="grid w-full max-w-md grid-cols-2 bg-transparent">
+            <TabsList className="grid w-full max-w-2xl grid-cols-3 bg-transparent">
               <TabsTrigger
                 value="job"
                 className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
               >
                 <FileText className="h-4 w-4 mr-2" />
-                View Job Description
+                Job Description
+              </TabsTrigger>
+              <TabsTrigger
+                value="score"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                <Target className="h-4 w-4 mr-2" />
+                Match Analysis
               </TabsTrigger>
               <TabsTrigger
                 value="tailor"
@@ -188,6 +245,19 @@ export default function TailorCV() {
           <div className="container mx-auto px-4 py-8">
             <div className="max-w-5xl mx-auto">
               <JobDescriptionPanel job={job} />
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Match Score View */}
+        <TabsContent value="score" className="mt-0">
+          <div className="container mx-auto px-4 py-8">
+            <div className="max-w-3xl mx-auto">
+              <MatchScorePanel
+                score={matchScore}
+                loading={analyzingMatch}
+                onAnalyze={handleAnalyzeMatch}
+              />
             </div>
           </div>
         </TabsContent>

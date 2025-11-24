@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Briefcase, Calendar, Trash2, FileText, Loader2 } from 'lucide-react';
-import { jobsAPI } from '@/lib/api';
+import { jobsAPI, cvAPI, matchingAPI } from '@/lib/api';
 import { toast } from 'sonner';
+import { MatchScoreBadge } from '@/components/cv/MatchScoreBadge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,10 +33,19 @@ export default function Jobs() {
   const [loading, setLoading] = useState(true);
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [jobScores, setJobScores] = useState<Map<string, number>>(new Map());
+  const [primaryCvId, setPrimaryCvId] = useState<string | null>(null);
 
   useEffect(() => {
     loadJobs();
+    loadPrimaryCv();
   }, []);
+
+  useEffect(() => {
+    if (jobs.length > 0 && primaryCvId) {
+      loadJobScores();
+    }
+  }, [jobs, primaryCvId]);
 
   const loadJobs = async () => {
     try {
@@ -46,6 +56,33 @@ export default function Jobs() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadPrimaryCv = async () => {
+    try {
+      const cvs = await cvAPI.list();
+      const primary = cvs.find(cv => cv.is_primary);
+      if (primary) {
+        setPrimaryCvId(primary.id);
+      }
+    } catch (error) {
+      console.error('Failed to load primary CV:', error);
+    }
+  };
+
+  const loadJobScores = async () => {
+    const scores = new Map();
+    for (const job of jobs) {
+      try {
+        const score = await matchingAPI.getScore(primaryCvId!, job.id);
+        if (score) {
+          scores.set(job.id, score.overall_score);
+        }
+      } catch (error) {
+        console.error(`Failed to load score for job ${job.id}:`, error);
+      }
+    }
+    setJobScores(scores);
   };
 
   const handleDelete = async () => {
@@ -162,7 +199,16 @@ export default function Jobs() {
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-                    <CardTitle className="text-lg line-clamp-2">{job.title}</CardTitle>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <CardTitle className="text-lg line-clamp-2 flex-1">{job.title}</CardTitle>
+                      {jobScores.has(job.id) && (
+                        <MatchScoreBadge
+                          score={jobScores.get(job.id)}
+                          size="sm"
+                          showLabel={false}
+                        />
+                      )}
+                    </div>
                     <CardDescription className="flex items-center gap-2 text-xs">
                       <Calendar className="h-3 w-3" />
                       Added {formatDate(job.created_at)}

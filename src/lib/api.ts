@@ -334,6 +334,58 @@ export const tailorAPI = {
 };
 
 // ============================================================================
+// Matching API (AI CV-to-Job Scoring)
+// ============================================================================
+
+export interface MatchScore {
+  overall_score: number;
+  skills_score?: number;
+  experience_score?: number;
+  qualifications_score?: number;
+  analysis: {
+    strengths: string[];
+    gaps: string[];
+    recommendations: string[];
+    matched_skills: string[];
+    missing_skills: string[];
+    matched_qualifications: string[];
+    missing_qualifications: string[];
+  };
+  cached: boolean;
+  created_at: string;
+}
+
+export const matchingAPI = {
+  /**
+   * Analyze CV-to-job match score with AI
+   * Returns cached result if available (< 7 days old)
+   */
+  async analyze(cvId: string, jobId: string): Promise<MatchScore> {
+    return fetchAPI('/matching/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ cv_id: cvId, job_id: jobId }),
+    });
+  },
+
+  /**
+   * Get cached match score if available (quick lookup for badges)
+   * Returns null if not analyzed yet or expired
+   */
+  async getScore(cvId: string, jobId: string): Promise<MatchScore | null> {
+    return fetchAPI(`/matching/score/${cvId}/${jobId}`);
+  },
+
+  /**
+   * Delete cached match score (forces re-analysis on next request)
+   */
+  async deleteScore(cvId: string, jobId: string): Promise<{ message: string; deleted: boolean }> {
+    return fetchAPI(`/matching/score/${cvId}/${jobId}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ============================================================================
 // Health Check
 // ============================================================================
 
@@ -371,6 +423,11 @@ export const apiClient = {
   getTailoringStatus: tailorAPI.getStatus,
   sendChatMessage: tailorAPI.sendMessage,
   getChatHistory: tailorAPI.getChatHistory,
+  
+  // Matching operations
+  analyzeMatch: matchingAPI.analyze,
+  getMatchScore: matchingAPI.getScore,
+  deleteMatchScore: matchingAPI.deleteScore,
   
   // Health check
   healthCheck: healthAPI.check,

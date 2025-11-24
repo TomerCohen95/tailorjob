@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import asyncio
 
 from app.config import settings
-from app.api.routes import cv, jobs, tailor
+from app.api.routes import cv, jobs, tailor, matching
 from app.workers.cv_worker import CVWorker
 
 # Initialize worker
@@ -76,6 +76,7 @@ async def root():
 app.include_router(cv.router, prefix="/api/cv", tags=["CV"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["Jobs"])
 app.include_router(tailor.router, prefix="/api/tailor", tags=["Tailor"])
+app.include_router(matching.router, prefix="/api", tags=["Matching"])
 
 if __name__ == "__main__":
     import uvicorn
