@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     AZURE_OPENAI_KEY: Optional[str] = ""
     AZURE_OPENAI_DEPLOYMENT: str = "gpt-4"
     
-    CORS_ORIGINS: str = '["http://localhost:5173"]'
+    CORS_ORIGINS: str = '["http://localhost:5173","http://localhost:8080"]'
     
     @property
     def cors_origins_list(self) -> List[str]:
