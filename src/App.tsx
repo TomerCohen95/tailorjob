@@ -9,6 +9,7 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import UploadCV from "./pages/UploadCV";
 import CVPreview from "./pages/CVPreview";
+import Jobs from "./pages/Jobs";
 import AddJob from "./pages/AddJob";
 import TailorCV from "./pages/TailorCV";
 import NotFound from "./pages/NotFound";
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/upload-cv" element={<UploadCV />} />
           <Route path="/cv-preview" element={<CVPreview />} />
+          <Route path="/jobs" element={<Jobs />} />
           <Route path="/jobs/add" element={<AddJob />} />
           <Route path="/jobs/:id/tailor" element={<TailorCV />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

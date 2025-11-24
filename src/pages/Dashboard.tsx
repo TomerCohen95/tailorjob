@@ -329,9 +329,12 @@ export default function Dashboard() {
                     </div>
                   ))}
                   {jobs.length > 3 && (
-                    <p className="text-sm text-muted-foreground text-center pt-2">
-                      +{jobs.length - 3} more jobs
-                    </p>
+                    <Link
+                      to="/jobs"
+                      className="block text-sm text-primary hover:text-primary/80 text-center pt-2 font-medium transition-colors cursor-pointer"
+                    >
+                      +{jobs.length - 3} more jobs →
+                    </Link>
                   )}
                 </div>
               ) : (
