@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Navigation } from '@/components/layout/Navigation';
 import { JobDescriptionPanel } from '@/components/cv/JobDescriptionPanel';
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 export default function TailorCV() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [cvContent, setCvContent] = useState(mockTailoredCV);
@@ -34,9 +35,15 @@ export default function TailorCV() {
       return;
     }
 
+    // Check if we should navigate to match tab
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'match') {
+      setActiveTab('score');
+    }
+
     loadJob();
     loadPrimaryCv();
-  }, [id, navigate]);
+  }, [id, navigate, searchParams]);
 
   useEffect(() => {
     if (id && primaryCvId) {

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Navigation } from '@/components/layout/Navigation';
 import { FileText, Plus, Briefcase, Upload, AlertCircle, Trash2, History, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, Loader2, Bell, Eye, Star } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { cvAPI, jobsAPI, type CV, type Job, type CVNotification } from '@/lib/api';
+import { cvAPI, jobsAPI, matchingAPI, type CV, type Job, type CVNotification, type MatchScore } from '@/lib/api';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { MatchScoreBadge } from '@/components/cv/MatchScoreBadge';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -32,6 +33,8 @@ export default function Dashboard() {
   const [cvToDelete, setCvToDelete] = useState<CV | null>(null);
   const [isDeletingCV, setIsDeletingCV] = useState(false);
   const [notifications, setNotifications] = useState<CVNotification[]>([]);
+  const [matchScores, setMatchScores] = useState<Map<string, MatchScore>>(new Map());
+  const [loadingScores, setLoadingScores] = useState(false);
 
   // Update URL when history view changes
   const toggleCVHistory = () => {
@@ -79,6 +82,12 @@ export default function Dashboard() {
       setCVs(cvsData);
       setJobs(jobsData);
       setNotifications(notificationsData);
+      
+      // Load match scores for jobs if we have a primary CV
+      const primaryCV = cvsData.find(cv => cv.is_primary) || cvsData[0];
+      if (primaryCV && jobsData.length > 0) {
+        loadMatchScores(primaryCV.id, jobsData);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load data';
       
@@ -93,6 +102,33 @@ export default function Dashboard() {
       toast.error(message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMatchScores(cvId: string, jobsList: Job[]) {
+    try {
+      setLoadingScores(true);
+      const scores = new Map<string, MatchScore>();
+      
+      // Load scores in parallel for all jobs
+      const scorePromises = jobsList.map(async (job) => {
+        try {
+          const score = await matchingAPI.getScore(cvId, job.id);
+          if (score) {
+            scores.set(job.id, score);
+          }
+        } catch (error) {
+          // Silently fail for individual score fetches
+          console.log(`No score for job ${job.id}`);
+        }
+      });
+      
+      await Promise.all(scorePromises);
+      setMatchScores(scores);
+    } catch (error) {
+      console.error('Error loading match scores:', error);
+    } finally {
+      setLoadingScores(false);
     }
   }
 
@@ -379,34 +415,48 @@ export default function Dashboard() {
             <CardContent>
               {jobs.length > 0 ? (
                 <div className="space-y-2">
-                  {jobs.slice(0, 3).map((job) => (
-                    <div key={job.id} className="p-4 border border-border rounded-lg hover:bg-muted transition-colors group">
-                      <div className="flex items-start justify-between gap-2">
-                        <Link to={`/jobs/${job.id}/tailor`} className="flex-1">
-                          <div>
-                            <p className="font-medium text-foreground">{job.title}</p>
+                  {jobs.slice(0, 3).map((job) => {
+                    const matchScore = matchScores.get(job.id);
+                    return (
+                      <div key={job.id} className="p-4 border border-border rounded-lg hover:bg-muted transition-colors group">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Link to={`/jobs/${job.id}/tailor`} className="flex-1 min-w-0">
+                                <p className="font-medium text-foreground truncate">{job.title}</p>
+                              </Link>
+                              {matchScore && (
+                                <Link to={`/jobs/${job.id}/tailor?tab=match`} className="hover:scale-105 transition-transform">
+                                  <MatchScoreBadge
+                                    score={matchScore.overall_score}
+                                    size="sm"
+                                    showIcon={false}
+                                  />
+                                </Link>
+                              )}
+                            </div>
                             <p className="text-sm text-muted-foreground">{job.company}</p>
                           </div>
-                        </Link>
-                        <div className="flex gap-1">
-                          <Link to={`/jobs/${job.id}/tailor`}>
-                            <Button size="sm" variant="ghost">Tailor CV</Button>
-                          </Link>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setJobToDelete(job);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-1 shrink-0">
+                            <Link to={`/jobs/${job.id}/tailor`}>
+                              <Button size="sm" variant="ghost">Tailor CV</Button>
+                            </Link>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setJobToDelete(job);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {jobs.length > 3 && (
                     <Link
                       to="/jobs"
