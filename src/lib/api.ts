@@ -180,6 +180,19 @@ export interface Job {
   company: string;
   description: string;
   status: 'active' | 'archived';
+  url?: string;
+  requirements_matrix?: {
+    must_have: Array<{
+      category: string;
+      requirement: string;
+      keywords: string[];
+    }>;
+    nice_to_have: Array<{
+      category: string;
+      requirement: string;
+      keywords: string[];
+    }>;
+  };
   created_at: string;
   updated_at: string;
 }
@@ -339,10 +352,42 @@ export const tailorAPI = {
 
 export interface MatchScore {
   overall_score: number;
+  
+  // v2.x fields (legacy)
+  deterministic_score?: number;
+  fit_score?: number;
+  must_have_score?: number;
+  nice_to_have_score?: number;
+  
+  // v3.0 fields (AI-first)
+  ai_holistic_score?: number;
+  component_average?: number;
+  scoring_method?: string;
+  
+  // Component scores (both versions)
   skills_score?: number;
   experience_score?: number;
   qualifications_score?: number;
-  analysis: {
+  
+  // v3.0 domain analysis
+  domain_fit?: 'SAME' | 'ADJACENT' | 'ORTHOGONAL' | 'UNKNOWN';
+  domain_mismatch?: boolean;
+  domain_mismatch_severity?: 'none' | 'moderate' | 'severe';
+  domain_explanation?: string;
+  transferability_assessment?: string;
+  reasoning?: string;
+  
+  // Match details (flattened for backward compatibility)
+  strengths?: string[];
+  gaps?: string[];
+  recommendations?: string[];
+  matched_skills?: string[];
+  missing_skills?: string[];
+  matched_qualifications?: string[];
+  missing_qualifications?: string[];
+  
+  // Legacy nested format (kept for backward compatibility)
+  analysis?: {
     strengths: string[];
     gaps: string[];
     recommendations: string[];
@@ -351,6 +396,7 @@ export interface MatchScore {
     matched_qualifications: string[];
     missing_qualifications: string[];
   };
+  
   cached: boolean;
   created_at: string;
 }

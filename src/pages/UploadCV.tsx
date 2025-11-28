@@ -25,6 +25,8 @@ export default function UploadCV() {
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateCvId, setDuplicateCvId] = useState<string | null>(null);
   const [duplicateCvInfo, setDuplicateCvInfo] = useState<any>(null);
+  const [cvToCancel, setCvToCancel] = useState<string | null>(null);
+  const [isCanceling, setIsCanceling] = useState(false);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -47,6 +49,11 @@ export default function UploadCV() {
         return;
       }
       
+      // Store CV ID for cancellation
+      if (result.cv_id) {
+        setCvToCancel(result.cv_id);
+      }
+      
       toast.success('CV uploaded successfully!', {
         description: 'Your CV is being parsed...'
       });
@@ -59,6 +66,23 @@ export default function UploadCV() {
         description: message
       });
     } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleCancelUpload = async () => {
+    if (!cvToCancel) return;
+    
+    setIsCanceling(true);
+    try {
+      await cvAPI.delete(cvToCancel);
+      toast.success('Upload cancelled');
+      setCvToCancel(null);
+      setFile(null);
+    } catch (error) {
+      console.error('Failed to cancel upload:', error);
+    } finally {
+      setIsCanceling(false);
       setIsUploading(false);
     }
   };
@@ -168,14 +192,25 @@ export default function UploadCV() {
                 >
                   Cancel
                 </Button>
-                <Button
-                  onClick={handleUpload}
-                  disabled={!file || isUploading}
-                  className="flex-1 bg-gradient-to-r from-primary to-accent hover:opacity-90"
-                >
-                  {isUploading ? 'Uploading...' : 'Upload & Parse'}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+                {isUploading ? (
+                  <Button
+                    onClick={handleCancelUpload}
+                    variant="destructive"
+                    className="flex-1"
+                    disabled={isCanceling}
+                  >
+                    {isCanceling ? 'Canceling...' : 'Cancel Upload'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleUpload}
+                    disabled={!file}
+                    className="flex-1 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  >
+                    Upload & Parse
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     
     CORS_ORIGINS: str = '["http://localhost:5173","http://localhost:8080"]'
     
+    # Matcher Version Control
+    USE_MATCHER_V3: bool = True  # Enable v3.0 AI-first matcher
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS_ORIGINS from JSON string to list"""

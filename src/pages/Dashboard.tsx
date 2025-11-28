@@ -33,6 +33,8 @@ export default function Dashboard() {
   const [cvToDelete, setCvToDelete] = useState<CV | null>(null);
   const [isDeletingCV, setIsDeletingCV] = useState(false);
   const [notifications, setNotifications] = useState<CVNotification[]>([]);
+  const [cvToCancel, setCvToCancel] = useState<CV | null>(null);
+  const [isCancelingCV, setIsCancelingCV] = useState(false);
   const [matchScores, setMatchScores] = useState<Map<string, MatchScore>>(new Map());
   const [loadingScores, setLoadingScores] = useState(false);
 
@@ -163,6 +165,24 @@ export default function Dashboard() {
       toast.error(message);
     } finally {
       setIsDeletingCV(false);
+    }
+  }
+
+  async function handleCancelCV() {
+    if (!cvToCancel) return;
+
+    setIsCancelingCV(true);
+    try {
+      // We use the delete endpoint to cancel/delete a CV that is processing
+      await cvAPI.delete(cvToCancel.id);
+      toast.success('CV processing cancelled and file deleted');
+      setCVs(cvs.filter(cv => cv.id !== cvToCancel.id));
+      setCvToCancel(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to cancel CV processing';
+      toast.error(message);
+    } finally {
+      setIsCancelingCV(false);
     }
   }
 
@@ -369,6 +389,17 @@ export default function Dashboard() {
                           {(primaryCV.file_size / 1024).toFixed(0)} KB • {getStatusText(primaryCV.status)}
                         </p>
                       </div>
+                      {primaryCV.status === 'parsing' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                          onClick={() => setCvToCancel(primaryCV)}
+                          title="Cancel processing"
+                        >
+                          <XCircle className="h-5 w-5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -574,6 +605,17 @@ export default function Dashboard() {
                             Retry
                           </Button>
                         )}
+                        {cv.status === 'parsing' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setCvToCancel(cv)}
+                            title="Cancel processing"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
@@ -664,6 +706,32 @@ export default function Dashboard() {
               className="bg-destructive hover:bg-destructive/90"
             >
               {isDeletingCV ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel CV Processing Dialog */}
+      <AlertDialog open={!!cvToCancel} onOpenChange={(open) => !open && setCvToCancel(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel CV Processing?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will stop the processing of "{cvToCancel?.original_filename}" and delete the file.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelingCV}>Keep Processing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleCancelCV();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isCancelingCV}
+            >
+              {isCancelingCV ? 'Canceling...' : 'Cancel Processing'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -29,6 +29,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/upload-cv" element={<UploadCV />} />
           <Route path="/cv-preview" element={<CVPreview />} />
+          <Route path="/cv/:id" element={<CVPreview />} />
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/jobs/add" element={<AddJob />} />
           <Route path="/jobs/:id/tailor" element={<TailorCV />} />

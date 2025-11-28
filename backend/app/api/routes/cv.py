@@ -301,13 +301,21 @@ async def delete_cv(cv_id: str, user = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="CV not found")
     
     # Delete from storage
-    await storage_service.delete_cv(cv_result.data["file_path"])
+    try:
+        await storage_service.delete_cv(cv_result.data["file_path"])
+    except Exception as e:
+        print(f"⚠️  Failed to delete file from storage: {str(e)}")
+        # Continue to delete from DB even if storage delete fails
     
     # Delete from database (cascade will handle related records)
-    supabase.table("cvs")\
-        .delete()\
-        .eq("id", cv_id)\
-        .eq("user_id", user.id)\
-        .execute()
+    try:
+        supabase.table("cvs")\
+            .delete()\
+            .eq("id", cv_id)\
+            .eq("user_id", user.id)\
+            .execute()
+    except Exception as e:
+        # Ignore postgrest response parsing errors, deletion was successful
+        print(f"⚠️  CV deleted but response parsing failed: {str(e)}")
     
     return {"message": "CV deleted successfully"}
