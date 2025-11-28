@@ -125,22 +125,33 @@ async def scrape_job(
         job_data = await job_scraper_service.scrape_job(request.url)
         
         # Store description as JSON string if it's structured, otherwise as plain text
+        # We also embed the requirements_matrix into the description JSON so it's available for matching
         description = job_data.get('description', '')
+        requirements_matrix = job_data.get('requirements_matrix')
+        
         if isinstance(description, dict):
+            if requirements_matrix:
+                description['requirements_matrix'] = requirements_matrix
             description_json = json.dumps(description)
         else:
             description_json = description
         
         # Save to database with job_id for deduplication
         try:
-            result = supabase.table("jobs").insert({
+            insert_data = {
                 "user_id": user.id,
                 "title": job_data.get('title', ''),
                 "company": job_data.get('company', ''),
                 "description": description_json,
                 "url": request.url,
                 "job_id": job_data.get('job_id')
-            }).execute()
+            }
+            
+            # Add requirements_matrix if present (v2.3+ feature)
+            if requirements_matrix:
+                insert_data["requirements_matrix"] = requirements_matrix
+            
+            result = supabase.table("jobs").insert(insert_data).execute()
             
             # Return both scraped data and saved job
             return {

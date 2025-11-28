@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user
 from app.services.cv_matcher import cv_matcher_service
+from app.services.cv_matcher_v3 import cv_matcher_service_v3
+from app.config import settings
 from app.utils.supabase_client import get_supabase
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
@@ -116,6 +118,11 @@ async def analyze_match(
             try:
                 # Try to parse as JSON (structured description)
                 job_data['description'] = json.loads(job_data['description'])
+                
+                # Extract requirements_matrix if embedded in description
+                if isinstance(job_data['description'], dict) and 'requirements_matrix' in job_data['description']:
+                    job_data['requirements_matrix'] = job_data['description']['requirements_matrix']
+                    
             except json.JSONDecodeError:
                 # Keep as plain text if not valid JSON
                 pass
@@ -125,9 +132,14 @@ async def analyze_match(
         print(f"❌ Error fetching job: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch job data: {str(e)}")
     
-    # Perform AI analysis
+    # Perform AI analysis (use v3.0 if enabled)
     try:
-        analysis = await cv_matcher_service.analyze_match(cv_data, job_data)
+        if settings.USE_MATCHER_V3:
+            print(f"🆕 Using Matcher v3.0 (AI-first)")
+            analysis = await cv_matcher_service_v3.analyze_match(cv_data, job_data)
+        else:
+            print(f"📊 Using Matcher v2.x (rule-based)")
+            analysis = await cv_matcher_service.analyze_match(cv_data, job_data)
     except Exception as e:
         print(f"❌ AI analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

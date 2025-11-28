@@ -18,10 +18,20 @@ interface StructuredDescription {
 export function JobDescriptionPanel({ job }: JobDescriptionPanelProps) {
   // Try to parse description as JSON
   let parsedDescription: StructuredDescription | null = null;
+  let plainDescription: string | null = null;
+  
   try {
-    parsedDescription = JSON.parse(job.description);
+    const parsed = JSON.parse(job.description);
+    // Check if it's a structured description object
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      parsedDescription = parsed;
+    } else {
+      // It's JSON but not the expected structure, use as plain text
+      plainDescription = job.description;
+    }
   } catch {
-    // If not JSON, keep as null and show plain text
+    // If not JSON, it's plain text
+    plainDescription = job.description;
   }
 
   const renderStructuredDescription = (data: StructuredDescription) => (
@@ -116,7 +126,7 @@ export function JobDescriptionPanel({ job }: JobDescriptionPanelProps) {
         ) : (
           <div className="prose prose-sm max-w-none">
             <pre className="whitespace-pre-wrap font-sans text-sm text-foreground leading-relaxed">
-              {job.description}
+              {plainDescription || job.description}
             </pre>
           </div>
         )}

@@ -102,21 +102,78 @@ export function MatchScorePanel({ score, loading, onAnalyze }: MatchScorePanelPr
         </CardContent>
       </Card>
 
+      {/* Detailed Score Analysis */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            Detailed Analysis
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <span className="font-medium text-sm text-green-700 dark:text-green-300">Strengths</span>
+              </div>
+              <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                {score.analysis.strengths?.length || 0}
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                Matched requirements
+              </p>
+            </div>
+            
+            <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span className="font-medium text-sm text-amber-700 dark:text-amber-300">Gaps</span>
+              </div>
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
+                {score.analysis.gaps?.length || 0}
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                Missing requirements
+              </p>
+            </div>
+            
+            <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Lightbulb className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span className="font-medium text-sm text-blue-700 dark:text-blue-300">Actions</span>
+              </div>
+              <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                {score.analysis.recommendations?.length || 0}
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Recommendations
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Strengths */}
       {score.analysis.strengths?.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2 text-green-600 dark:text-green-500">
               <CheckCircle2 className="h-5 w-5" />
-              Your Strengths
+              Your Strengths ({score.analysis.strengths.length})
             </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Requirements you meet from the job description
+            </p>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {score.analysis.strengths.map((strength, i) => (
-                <li key={i} className="flex gap-2 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                  <span>{strength}</span>
+                <li key={i} className="flex gap-3 text-sm p-3 rounded-lg bg-green-50 dark:bg-green-950 border border-green-100 dark:border-green-900">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="text-foreground leading-relaxed whitespace-pre-wrap">{strength}</span>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -130,15 +187,20 @@ export function MatchScorePanel({ score, loading, onAnalyze }: MatchScorePanelPr
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2 text-amber-600 dark:text-amber-500">
               <AlertCircle className="h-5 w-5" />
-              Areas to Address
+              Areas to Address ({score.analysis.gaps.length})
             </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Requirements where you need to strengthen your profile
+            </p>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {score.analysis.gaps.map((gap, i) => (
-                <li key={i} className="flex gap-2 text-sm">
-                  <AlertCircle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                  <span>{gap}</span>
+                <li key={i} className="flex gap-3 text-sm p-3 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-100 dark:border-amber-900">
+                  <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <span className="text-foreground font-medium">{gap}</span>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -148,19 +210,26 @@ export function MatchScorePanel({ score, loading, onAnalyze }: MatchScorePanelPr
 
       {/* Recommendations */}
       {score.analysis.recommendations?.length > 0 && (
-        <Card className="border-2 border-primary/30">
+        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2 text-primary">
+            <CardTitle className="text-base flex items-center gap-2 text-blue-700 dark:text-blue-300">
               <Lightbulb className="h-5 w-5" />
-              AI Recommendations
+              AI Recommendations ({score.analysis.recommendations.length})
             </CardTitle>
+            <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+              Actionable steps to improve your match score
+            </p>
           </CardHeader>
           <CardContent>
             <ul className="space-y-3">
               {score.analysis.recommendations.map((rec, i) => (
-                <li key={i} className="flex gap-2 text-sm bg-primary/5 p-3 rounded-lg">
-                  <Lightbulb className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                  <span>{rec}</span>
+                <li key={i} className="flex gap-3 text-sm bg-white dark:bg-slate-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800 shadow-sm">
+                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                    <span className="text-xs font-bold text-blue-700 dark:text-blue-300">{i + 1}</span>
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-foreground leading-relaxed">{rec}</span>
+                  </div>
                 </li>
               ))}
             </ul>

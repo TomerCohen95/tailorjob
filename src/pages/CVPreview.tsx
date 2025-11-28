@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface CVSections {
   summary: string;
-  skills: string[];
+  skills: string[] | Record<string, string[]>;
   experience: any[];
   education: any[];
   certifications: any[];
@@ -19,7 +19,8 @@ interface CVSections {
 
 export default function CVPreview() {
   const [searchParams] = useSearchParams();
-  const cvId = searchParams.get('cvId');
+  const { id } = useParams();
+  const cvId = id || searchParams.get('cvId');
   const [sections, setSections] = useState<CVSections | null>(null);
   const [loading, setLoading] = useState(true);
   const [cvStatus, setCvStatus] = useState<string>('');
@@ -235,15 +236,38 @@ export default function CVPreview() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {sections.skills.length > 0 ? (
-                    sections.skills.map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="px-3 py-1">
-                        {skill}
-                      </Badge>
-                    ))
+                <div className="flex flex-col gap-4">
+                  {Array.isArray(sections.skills) ? (
+                    <div className="flex flex-wrap gap-2">
+                      {sections.skills.length > 0 ? (
+                        sections.skills.map((skill, index) => (
+                          <Badge key={index} variant="secondary" className="px-3 py-1">
+                            {skill}
+                          </Badge>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground">No skills listed</p>
+                      )}
+                    </div>
                   ) : (
-                    <p className="text-muted-foreground">No skills listed</p>
+                    Object.entries(sections.skills).map(([category, skills]) => (
+                      <div key={category}>
+                        <h4 className="text-sm font-semibold text-muted-foreground mb-2 capitalize">
+                          {category.replace('_', ' ')}
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {skills && skills.length > 0 ? (
+                            skills.map((skill, index) => (
+                              <Badge key={index} variant="secondary" className="px-3 py-1">
+                                {skill}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-sm text-muted-foreground italic">None</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </CardContent>

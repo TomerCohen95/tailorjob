@@ -7,10 +7,11 @@ import { CVEditor } from '@/components/cv/CVEditor';
 import { ChatPanel } from '@/components/cv/ChatPanel';
 import { RevisionHistory } from '@/components/cv/RevisionHistory';
 import { MatchScorePanel } from '@/components/cv/MatchScorePanel';
+import { MatchDebugPanel } from '@/components/cv/MatchDebugPanel';
 import { Save, Download, History, Loader2, FileText, Edit3, Target } from 'lucide-react';
 import { mockTailoredCV, mockChatMessages, mockRevisions, ChatMessage, Revision } from '@/lib/mockData';
 import { toast } from 'sonner';
-import { jobsAPI, cvAPI, matchingAPI, type Job, type MatchScore } from '@/lib/api';
+import { jobsAPI, cvAPI, matchingAPI, type Job, type MatchScore, type CVWithSections } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function TailorCV() {
@@ -27,6 +28,8 @@ export default function TailorCV() {
   const [matchScore, setMatchScore] = useState<MatchScore | null>(null);
   const [analyzingMatch, setAnalyzingMatch] = useState(false);
   const [primaryCvId, setPrimaryCvId] = useState<string | null>(null);
+  const [cvData, setCvData] = useState<CVWithSections | null>(null);
+  const [loadingCv, setLoadingCv] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -48,6 +51,7 @@ export default function TailorCV() {
   useEffect(() => {
     if (id && primaryCvId) {
       loadMatchScore();
+      loadCvData();
     }
   }, [id, primaryCvId]);
 
@@ -87,6 +91,20 @@ export default function TailorCV() {
     }
   }
 
+  async function loadCvData() {
+    if (!primaryCvId) return;
+    
+    try {
+      setLoadingCv(true);
+      const data = await cvAPI.get(primaryCvId);
+      setCvData(data);
+    } catch (error) {
+      console.error('Failed to load CV data:', error);
+    } finally {
+      setLoadingCv(false);
+    }
+  }
+
   async function handleAnalyzeMatch() {
     if (!primaryCvId || !id) {
       toast.error('Please upload a CV first');
@@ -95,6 +113,16 @@ export default function TailorCV() {
     
     try {
       setAnalyzingMatch(true);
+      
+      // Delete cached score to force fresh analysis
+      try {
+        await matchingAPI.deleteScore(primaryCvId, id);
+        console.log('Cache cleared for fresh analysis');
+      } catch (error) {
+        // Ignore cache delete errors (may not exist)
+        console.log('No cached score to delete');
+      }
+      
       const score = await matchingAPI.analyze(primaryCvId, id);
       setMatchScore(score);
       toast.success('Match analysis complete!');
@@ -259,12 +287,21 @@ export default function TailorCV() {
         {/* Match Score View */}
         <TabsContent value="score" className="mt-0">
           <div className="container mx-auto px-4 py-8">
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-5xl mx-auto space-y-6">
               <MatchScorePanel
                 score={matchScore}
                 loading={analyzingMatch}
                 onAnalyze={handleAnalyzeMatch}
               />
+              
+              {/* Debug Panel - Show when data is available */}
+              {matchScore && cvData && !loadingCv && (
+                <MatchDebugPanel
+                  job={job}
+                  cvData={cvData}
+                  matchScore={matchScore}
+                />
+              )}
             </div>
           </div>
         </TabsContent>

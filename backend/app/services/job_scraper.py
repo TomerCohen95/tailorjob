@@ -312,41 +312,39 @@ class JobScraperService:
         prompt = f"""Extract and structure the job posting information from the following text.{hint_text}
 
 Create a comprehensive job description organized into clear sections for CV tailoring.
+CRITICAL: You must also extract a "requirements_matrix" that breaks down requirements into atomic, verifiable items.
 
 Return a JSON object with these fields:
 - title: Job title
 - company: Company name
-- description: A well-structured description with the following sections:
+- description: A structured object with these sections (extract from the job posting):
+  {{
+    "About the Role": "Brief overview paragraph",
+    "Key Responsibilities": ["Responsibility 1", "Responsibility 2", ...],
+    "Required Qualifications": ["Must-have skill 1", "Must-have skill 2", ...],
+    "Preferred Qualifications": ["Nice-to-have 1", "Nice-to-have 2", ...],
+    "Technical Skills": ["Tech 1", "Tech 2", ...]
+  }}
+- requirements_matrix: {{
+    "must_have": ["3+ years Python", "FastAPI experience", "Bachelor's degree"],
+    "nice_to_have": ["Azure knowledge", "React"],
+    "meta": {{
+        "min_years_experience": 3,
+        "education_level": "Bachelor",
+        "location": "Remote/Hybrid/On-site",
+        "visa_sponsorship": true/false/null
+    }}
+}}
 
-## About the Role
-[Brief overview of the position]
-
-## Key Responsibilities
-- [Bullet point 1]
-- [Bullet point 2]
-...
-
-## Required Qualifications
-- [Must-have qualification 1]
-- [Must-have qualification 2]
-...
-
-## Preferred Qualifications
-- [Nice-to-have skill 1]
-- [Nice-to-have skill 2]
-...
-
-## Technical Skills
-- [Technical skill 1]
-- [Technical skill 2]
-...
-
-Extract all relevant information and organize it properly. Be comprehensive - include ALL qualifications, requirements, and skills mentioned.
+Guidelines:
+- For "description": Extract and organize into the 5 sections above. Arrays should contain clear, concise bullet points.
+- For "requirements_matrix": Extract ONLY hard requirements in "must_have". Be specific (e.g., "3+ years Python").
+- Include all sections even if some are empty arrays.
 
 Text:
 {text}
 
-Return ONLY valid JSON with the structure: {{"title": "...", "company": "...", "description": "..."}}"""
+Return ONLY valid JSON with the structure: {{"title": "...", "company": "...", "description": {{...}}, "requirements_matrix": {{...}}}}"""
 
         try:
             print(f"🤖 Calling Azure OpenAI with deployment: {self.deployment}")
