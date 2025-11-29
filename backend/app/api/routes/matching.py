@@ -2,13 +2,50 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user
 from app.services.cv_matcher import cv_matcher_service
 from app.services.cv_matcher_v3 import cv_matcher_service_v3
+from app.services.cv_matcher_v4 import CVMatcherServiceV4
+from app.services.cv_matcher_v5 import CVMatcherV5
+from app.services.cv_extractor_v5 import CVExtractorV5
 from app.config import settings
 from app.utils.supabase_client import get_supabase
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
+from openai import AsyncAzureOpenAI
+import json
 
 router = APIRouter(prefix="/matching", tags=["matching"])
+
+# Initialize v5.0 services (if enabled)
+cv_matcher_v5 = None
+if settings.USE_MATCHER_V5:
+    try:
+        # Create Azure OpenAI clients
+        mini_client = AsyncAzureOpenAI(
+            api_key=settings.AZURE_OPENAI_KEY,
+            api_version=settings.AZURE_OPENAI_API_VERSION,
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT
+        )
+        
+        gpt4_client = AsyncAzureOpenAI(
+            api_key=settings.AZURE_OPENAI_KEY,
+            api_version=settings.AZURE_OPENAI_API_VERSION,
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT
+        )
+        
+        # Create extractor and matcher
+        extractor_v5 = CVExtractorV5(
+            client=mini_client,
+            deployment=settings.AZURE_OPENAI_DEPLOYMENT_MINI
+        )
+        
+        cv_matcher_v5 = CVMatcherV5(
+            extractor=extractor_v5,
+            gpt4_client=gpt4_client,
+            gpt4_deployment=settings.AZURE_OPENAI_DEPLOYMENT_GPT4
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to initialize v5.0 matcher: {e}")
+        cv_matcher_v5 = None
 
 
 class MatchRequest(BaseModel):
@@ -132,9 +169,37 @@ async def analyze_match(
         print(f"❌ Error fetching job: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch job data: {str(e)}")
     
-    # Perform AI analysis (use v3.0 if enabled)
+    # Perform AI analysis (route to appropriate matcher version)
     try:
-        if settings.USE_MATCHER_V3:
+        if settings.USE_MATCHER_V5 and cv_matcher_v5:
+            print(f"🚀 Using Matcher v5.0 (Fully AI-Driven with GPT-4)")
+            # Build CV text from sections
+            cv_text = f"""
+SUMMARY:
+{cv_data.get('summary', 'Not provided')}
+
+SKILLS:
+{cv_data.get('skills', 'Not provided')}
+
+EXPERIENCE:
+{cv_data.get('experience', 'Not provided')}
+
+EDUCATION:
+{cv_data.get('education', 'Not provided')}
+
+CERTIFICATIONS:
+{cv_data.get('certifications', 'Not provided')}
+"""
+            analysis = await cv_matcher_v5.analyze_match(cv_text, job_data)
+            
+        elif settings.USE_MATCHER_V4:
+            print(f"🚀 Using Matcher v4.0 (Extract→Normalize→Compare→Score→Explain)")
+            cv_matcher_v4 = CVMatcherServiceV4()
+            analysis = await cv_matcher_v4.analyze_match(
+                {"sections": cv_data},
+                job_data
+            )
+        elif settings.USE_MATCHER_V3:
             print(f"🆕 Using Matcher v3.0 (AI-first)")
             analysis = await cv_matcher_service_v3.analyze_match(cv_data, job_data)
         else:

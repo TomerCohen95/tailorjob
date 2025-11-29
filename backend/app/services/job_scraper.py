@@ -186,12 +186,54 @@ class JobScraperService:
     
     def _validate_job_page(self, html: str, job_data: dict) -> None:
         """
-        Validate that the page is actually a job posting, not a login/error page.
+        Validate that the page is actually a job posting, not a login/error/search page.
         Raises ValueError with user-friendly message if invalid.
         """
         title = str(job_data.get('title', '')).lower()
         company = str(job_data.get('company', '')).lower()
         description = str(job_data.get('description', '')).lower()
+        
+        # Check for search/list page indicators in URL and content
+        soup = BeautifulSoup(html, 'html.parser')
+        page_text = soup.get_text().lower()
+        
+        # Microsoft Careers specific: Check if this is a search results page
+        # Look for multiple job listings indicators
+        if 'careers.microsoft.com' in html.lower():
+            # Search results pages have URL params like ?start=, ?location=, and list multiple jobs
+            search_indicators = [
+                '?start=' in html.lower(),
+                '?location=' in html.lower() or 'location=' in html.lower(),
+                'sort_by=' in html.lower() or 'filter_' in html.lower(),
+                # Search results typically have job listing cards/tiles
+                page_text.count('apply now') > 3,  # Multiple "apply" buttons
+                page_text.count('job id') > 3,     # Multiple job IDs listed
+            ]
+            
+            if sum(search_indicators) >= 2:
+                raise ValueError(
+                    "This appears to be a Microsoft Careers search results page, not a specific job posting. "
+                    "Please click on a specific job from the search results, then copy that job's direct URL. "
+                    "The URL should look like: https://jobs.careers.microsoft.com/global/en/job/[job-id]/"
+                )
+        
+        # Generic search/list page detection
+        list_page_indicators = [
+            'showing results' in page_text,
+            'search results' in page_text,
+            'jobs found' in page_text and page_text.count('jobs') > 5,
+            'view all jobs' in page_text,
+            'filter by' in page_text and 'sort by' in page_text,
+            # Multiple job cards/listings
+            page_text.count('view job') > 3,
+            page_text.count('see more') > 3,
+        ]
+        
+        if sum(list_page_indicators) >= 3:
+            raise ValueError(
+                "This appears to be a job search results or listing page, not a specific job posting. "
+                "Please click on a specific job from the list, then copy that job's direct URL."
+            )
         
         # Red flags in title that indicate non-job pages (be specific to avoid false positives)
         invalid_title_patterns = [
