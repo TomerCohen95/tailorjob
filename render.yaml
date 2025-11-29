@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: tailorjob-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: AZ_OPENAI_ENDPOINT
+        sync: false
+      - key: AZ_OPENAI_API_KEY
+        sync: false
+      - key: AZ_OPENAI_API_VERSION
+        value: 2024-08-01-preview
+      - key: AZ_OPENAI_DEPLOYMENT_NAME
+        sync: false
+      - key: CORS_ORIGINS
+        value: '["https://tailorjob.vercel.app"]'
+    plan: free  # Change to 'starter' for $7/month always-on

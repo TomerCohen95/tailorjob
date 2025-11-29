@@ -1,6 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+// Use environment variable if set, otherwise use localhost for dev
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD
+    ? 'https://tailorjob-api.onrender.com/api'  // Production backend on Render
+    : 'http://localhost:8000/api'                // Local development
+  );
 
 /**
  * Get the current user's JWT token from Supabase
