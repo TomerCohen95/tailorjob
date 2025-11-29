@@ -57,6 +57,8 @@ export interface CV {
   status: 'uploaded' | 'parsing' | 'parsed' | 'error';
   is_primary?: boolean;
   file_hash?: string;
+  error_message?: string;
+  parsed_at?: string;
   created_at: string;
   updated_at: string;
 }

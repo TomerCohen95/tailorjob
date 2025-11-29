@@ -132,6 +132,64 @@ export default function CVPreview() {
   }
 
   if (!sections) {
+    // Check if CV is still being parsed
+    if (cvStatus === 'parsing' || cvStatus === 'uploaded') {
+      return (
+        <div className="min-h-screen bg-background">
+          <Navigation />
+          <div className="container mx-auto px-4 py-8">
+            <div className="max-w-2xl mx-auto">
+              <Card className="border-yellow-500/50 bg-yellow-50/50">
+                <CardContent className="pt-6">
+                  <div className="text-center space-y-4">
+                    <div className="flex justify-center">
+                      <Loader2 className="h-12 w-12 animate-spin text-yellow-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-foreground mb-2">
+                        🤖 Your CV is Being Parsed
+                      </h2>
+                      <p className="text-muted-foreground">
+                        We're extracting information from your CV. This usually takes 15-30 seconds.
+                      </p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 text-left space-y-2">
+                      <p className="text-sm font-medium">We're extracting:</p>
+                      <div className="space-y-1 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>Professional summary</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>Work experience</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>Education</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>Skills</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      The page will update automatically when parsing is complete
+                    </p>
+                    <Link to="/dashboard">
+                      <Button variant="outline">Return to Dashboard</Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // No CV at all - show upload prompt
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
@@ -140,7 +198,7 @@ export default function CVPreview() {
             <CardContent className="pt-6">
               <p className="text-center text-muted-foreground">No CV data available. Please upload a CV first.</p>
               <div className="mt-4 flex justify-center">
-                <Link to="/upload">
+                <Link to="/upload-cv">
                   <Button>Upload CV</Button>
                 </Link>
               </div>

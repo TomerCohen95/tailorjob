@@ -7,6 +7,7 @@ import { FileUpload } from '@/components/ui/file-upload';
 import { ArrowRight, CheckCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { cvAPI } from '@/lib/api';
+import { useCVParsing } from '@/contexts/CVParsingContext';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +21,7 @@ import {
 
 export default function UploadCV() {
   const navigate = useNavigate();
+  const { startParsing } = useCVParsing();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
@@ -52,6 +54,8 @@ export default function UploadCV() {
       // Store CV ID for cancellation
       if (result.cv_id) {
         setCvToCancel(result.cv_id);
+        // Start tracking parsing in context
+        startParsing(result.cv_id, file.name);
       }
       
       toast.success('CV uploaded successfully!', {

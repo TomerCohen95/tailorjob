@@ -7,6 +7,8 @@ import { FileText, Plus, Briefcase, Upload, AlertCircle, Trash2, History, Chevro
 import { supabase } from '@/integrations/supabase/client';
 import { cvAPI, jobsAPI, matchingAPI, type CV, type Job, type CVNotification, type MatchScore } from '@/lib/api';
 import { toast } from 'sonner';
+import { useCVParsing } from '@/contexts/CVParsingContext';
+import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   AlertDialog,
@@ -22,7 +24,9 @@ import { MatchScoreBadge } from '@/components/cv/MatchScoreBadge';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { parsingCVs, isAnyParsing } = useCVParsing();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [lastParsingState, setLastParsingState] = useState(false);
   const [cvs, setCVs] = useState<CV[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,22 +73,32 @@ export default function Dashboard() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  // Reload data when parsing completes
+  useEffect(() => {
+    // Detect transition from parsing to not parsing
+    if (lastParsingState && !isAnyParsing) {
+      console.log('Parsing completed, reloading data...');
+      loadData();
+    }
+    setLastParsingState(isAnyParsing);
+  }, [isAnyParsing, lastParsingState]);
+
   async function loadData() {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Load CVs, jobs, and notifications in parallel
       const [cvsData, jobsData, notificationsData] = await Promise.all([
         cvAPI.list(),
         jobsAPI.list(),
         cvAPI.getNotifications()
       ]);
-      
+
       setCVs(cvsData);
       setJobs(jobsData);
       setNotifications(notificationsData);
-      
+
       // Load match scores for jobs if we have a primary CV
       const primaryCV = cvsData.find(cv => cv.is_primary) || cvsData[0];
       if (primaryCV && jobsData.length > 0) {
@@ -92,14 +106,14 @@ export default function Dashboard() {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load data';
-      
+
       // If authentication error, redirect to login
       if (message.includes('Not authenticated') || message.includes('401') || message.includes('403')) {
         await supabase.auth.signOut();
         navigate('/login');
         return;
       }
-      
+
       setError(message);
       toast.error(message);
     } finally {
@@ -111,7 +125,7 @@ export default function Dashboard() {
     try {
       setLoadingScores(true);
       const scores = new Map<string, MatchScore>();
-      
+
       // Load scores in parallel for all jobs
       const scorePromises = jobsList.map(async (job) => {
         try {
@@ -124,7 +138,7 @@ export default function Dashboard() {
           console.log(`No score for job ${job.id}`);
         }
       });
-      
+
       await Promise.all(scorePromises);
       setMatchScores(scores);
     } catch (error) {
@@ -213,21 +227,21 @@ export default function Dashboard() {
   };
 
   const primaryCV = cvs.find(cv => cv.is_primary) || cvs[0]; // Primary CV or most recent
-  
+
   // Group CVs by file_hash to show only unique uploads
   // Keep the most recent version of each unique CV
   const uniqueCVs = cvs.reduce((acc, cv) => {
     const hash = cv.file_hash || cv.id; // Fallback to ID if no hash
     const existing = acc.get(hash);
-    
+
     // Keep the CV with the most recent created_at date
     if (!existing || new Date(cv.created_at) > new Date(existing.created_at)) {
       acc.set(hash, cv);
     }
-    
+
     return acc;
   }, new Map<string, CV>());
-  
+
   const displayCVs = Array.from(uniqueCVs.values()).sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
@@ -248,7 +262,7 @@ export default function Dashboard() {
       // Mark notification as read
       await cvAPI.deleteNotification(notification.id);
       setNotifications(notifications.filter(n => n.id !== notification.id));
-      
+
       // Navigate to CV
       navigate(`/cv/${notification.cv_id}`);
     } catch (error) {
@@ -294,7 +308,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
@@ -324,15 +338,7 @@ export default function Dashboard() {
                       className="border-green-600 text-green-700 hover:bg-green-100"
                     >
                       <Eye className="h-3 w-3 mr-1" />
-                      View
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => handleMakePrimary(notification)}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <Star className="h-3 w-3 mr-1" />
-                      Make Primary
+                      View CV
                     </Button>
                     <Button
                       size="sm"
@@ -380,28 +386,55 @@ export default function Dashboard() {
             <CardContent className="space-y-3">
               {primaryCV ? (
                 <>
-                  <div className="p-4 bg-muted rounded-lg">
-                    <div className="flex items-start gap-2">
-                      {getStatusIcon(primaryCV.status)}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground truncate">{primaryCV.original_filename}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {(primaryCV.file_size / 1024).toFixed(0)} KB • {getStatusText(primaryCV.status)}
-                        </p>
+                  {(primaryCV.status === 'parsing' || primaryCV.status === 'uploaded') ? (
+                    // Enhanced parsing state
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-2">
+                          <Loader2 className="h-5 w-5 animate-spin text-yellow-600 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-foreground truncate">{primaryCV.original_filename}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {(primaryCV.file_size / 1024).toFixed(0)} KB • {parsingCVs.get(primaryCV.id)?.stage || 'Parsing in progress...'}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                            onClick={() => setCvToCancel(primaryCV)}
+                            title="Cancel processing"
+                          >
+                            <XCircle className="h-5 w-5" />
+                          </Button>
+                        </div>
+                        {parsingCVs.get(primaryCV.id) && (
+                          <div className="space-y-2">
+                            <Progress value={parsingCVs.get(primaryCV.id)!.progress} className="h-2" />
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">
+                                {parsingCVs.get(primaryCV.id)!.progress === 100 ? 'Parsing complete!' : parsingCVs.get(primaryCV.id)!.stage}
+                              </span>
+                              <span className="font-medium text-yellow-700">{parsingCVs.get(primaryCV.id)!.progress}%</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      {primaryCV.status === 'parsing' && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
-                          onClick={() => setCvToCancel(primaryCV)}
-                          title="Cancel processing"
-                        >
-                          <XCircle className="h-5 w-5" />
-                        </Button>
-                      )}
                     </div>
-                  </div>
+                  ) : (
+                    // Normal CV display
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-start gap-2">
+                        {getStatusIcon(primaryCV.status)}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">{primaryCV.original_filename}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {(primaryCV.file_size / 1024).toFixed(0)} KB • {getStatusText(primaryCV.status)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <Link to="/cv-preview" className="flex-1">
                       <Button variant="outline" className="w-full">View Parsed CV</Button>
