@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     AZURE_OPENAI_DEPLOYMENT_GPT4: str = "gpt-4"        # For v5.0 analysis
     AZURE_OPENAI_API_VERSION: str = "2024-08-01-preview"
     
+    # PayPal Configuration
+    PAYPAL_CLIENT_ID: str = ""
+    PAYPAL_SECRET: str = ""
+    PAYPAL_BASE_URL: str = "https://api-m.sandbox.paypal.com"  # sandbox or production
+    PAYPAL_WEBHOOK_ID: str = ""
+    
     CORS_ORIGINS: str = '["http://localhost:5173","http://localhost:8080"]'
     
     # Matcher Version Control
