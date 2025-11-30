@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user
 from app.services.cv_matcher import cv_matcher_service
 from app.services.cv_matcher_v3 import cv_matcher_service_v3
-from app.services.cv_matcher_v4 import CVMatcherServiceV4
 from app.services.cv_matcher_v5 import CVMatcherV5
 from app.services.cv_extractor_v5 import CVExtractorV5
 from app.config import settings
@@ -192,13 +191,6 @@ CERTIFICATIONS:
 """
             analysis = await cv_matcher_v5.analyze_match(cv_text, job_data)
             
-        elif settings.USE_MATCHER_V4:
-            print(f"🚀 Using Matcher v4.0 (Extract→Normalize→Compare→Score→Explain)")
-            cv_matcher_v4 = CVMatcherServiceV4()
-            analysis = await cv_matcher_v4.analyze_match(
-                {"sections": cv_data},
-                job_data
-            )
         elif settings.USE_MATCHER_V3:
             print(f"🆕 Using Matcher v3.0 (AI-first)")
             analysis = await cv_matcher_service_v3.analyze_match(cv_data, job_data)
