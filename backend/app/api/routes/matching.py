@@ -6,6 +6,7 @@ from app.services.cv_matcher_v5 import CVMatcherV5
 from app.services.cv_extractor_v5 import CVExtractorV5
 from app.config import settings
 from app.utils.supabase_client import get_supabase
+from app.utils.usage_limiter import require_feature_dependency
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
@@ -62,10 +63,15 @@ class MatchResponse(BaseModel):
     created_at: str
 
 
+# Create dependency function for job matches
+async def check_job_match_access(user = Depends(get_current_user)):
+    return await require_feature_dependency("job_matches", user)
+
 @router.post("/analyze", response_model=MatchResponse)
 async def analyze_match(
     request: MatchRequest,
-    user = Depends(get_current_user)
+    user = Depends(get_current_user),
+    _feature_check: bool = Depends(check_job_match_access)
 ):
     """
     Analyze CV-to-job match. Returns cached result if available and fresh (< 7 days).
@@ -169,9 +175,12 @@ async def analyze_match(
         raise HTTPException(status_code=500, detail=f"Failed to fetch job data: {str(e)}")
     
     # Perform AI analysis (route to appropriate matcher version)
+    # Default to v3 if no version specified
+    matcher_version = "v3.0"
     try:
         if settings.USE_MATCHER_V5 and cv_matcher_v5:
             print(f"🚀 Using Matcher v5.0 (Fully AI-Driven with GPT-4)")
+            matcher_version = "v5.0"
             # Build CV text from sections
             cv_text = f"""
 SUMMARY:
@@ -191,15 +200,17 @@ CERTIFICATIONS:
 """
             analysis = await cv_matcher_v5.analyze_match(cv_text, job_data)
             
-        elif settings.USE_MATCHER_V3:
-            print(f"🆕 Using Matcher v3.0 (AI-first)")
-            analysis = await cv_matcher_service_v3.analyze_match(cv_data, job_data)
         else:
-            print(f"📊 Using Matcher v2.x (rule-based)")
-            analysis = await cv_matcher_service.analyze_match(cv_data, job_data)
+            # Default to v3 (AI-first with rule-based safety rails)
+            print(f"🆕 Using Matcher v3.0 (AI-first with safety rails)")
+            matcher_version = "v3.0"
+            analysis = await cv_matcher_service_v3.analyze_match(cv_data, job_data)
     except Exception as e:
         print(f"❌ AI analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+    # Add matcher version to analysis
+    analysis["matcher_version"] = matcher_version
     
     # Store result with 7-day expiry
     try:

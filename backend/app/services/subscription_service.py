@@ -68,7 +68,7 @@ class SubscriptionService:
             }
         """
         # Get subscription from database
-        result = supabase.table('subscriptions').select('*').eq('user_id', user_id).single().execute()
+        result = supabase.table('subscriptions').select('*').eq('user_id', user_id).maybe_single().execute()
         
         if not result.data:
             # No subscription = free tier
@@ -125,7 +125,7 @@ class SubscriptionService:
         
         Args:
             user_id: User UUID
-            feature: Feature name ('cv_upload', 'job_match', 'tailor_cv', 'export_pdf')
+            feature: Feature name ('cv_uploads', 'job_matches', 'tailored_cvs', 'export_pdf')
         
         Returns:
             (allowed: bool, error_message: Optional[str])
@@ -133,18 +133,23 @@ class SubscriptionService:
         subscription = await self.get_user_subscription(user_id)
         
         # Map feature to usage key
-        usage_key = feature.replace('_', 's') if feature.endswith('_upload') or feature.endswith('_match') else feature.replace('_', '_')
-        usage_key = usage_key.replace('cv_upload', 'cvs').replace('job_match', 'matches').replace('tailor_cv', 'tailored').replace('export_pdf', 'exports')
+        usage_key = feature.replace('cv_uploads', 'cvs').replace('job_matches', 'matches').replace('tailored_cvs', 'tailored').replace('export_pdf', 'exports')
         
         limit = subscription['limits'].get(usage_key, 0)
         current_usage = subscription['usage'].get(usage_key, 0)
         
+        print(f"📊 Feature: {feature} -> {usage_key}")
+        print(f"📊 Current usage: {current_usage} / {limit}")
+        print(f"📊 Tier: {subscription['tier']}")
+        
         # -1 means unlimited
         if limit == -1:
+            print(f"✅ Unlimited access")
             return True, None
         
         # Check if under limit
         if current_usage < limit:
+            print(f"✅ Under limit: {current_usage} < {limit}")
             return True, None
         
         # Over limit
@@ -162,22 +167,33 @@ class SubscriptionService:
         
         Args:
             user_id: User UUID
-            feature: Feature name ('cv_upload', 'job_match', 'tailor_cv', 'export_pdf')
+            feature: Feature name ('cv_uploads', 'job_matches', 'tailored_cvs', 'export_pdf')
             amount: Amount to increment (default: 1)
         
         Returns:
             True if successful
         """
+        # Map decorator feature names to database column names
+        feature_map = {
+            'cv_uploads': 'cv_upload',
+            'job_matches': 'job_match',
+            'tailored_cvs': 'tailor_cv',
+            'export_pdf': 'export_pdf'
+        }
+        
+        db_feature = feature_map.get(feature, feature)
+        
         try:
             # Use PostgreSQL function for atomic increment
-            supabase.rpc('increment_usage', {
+            result = supabase.rpc('increment_usage', {
                 'p_user_id': user_id,
-                'p_feature': feature,
+                'p_feature': db_feature,
                 'p_amount': amount
             }).execute()
+            print(f"✅ Usage tracked: {feature} -> {db_feature} for user {user_id}")
             return True
         except Exception as e:
-            print(f"Error tracking usage: {e}")
+            print(f"❌ Error tracking usage for {feature}: {e}")
             return False
     
     async def create_subscription(

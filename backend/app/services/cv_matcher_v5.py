@@ -196,14 +196,20 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    - Be generous with "PARTIAL" for transferable skills
 
 2. EDUCATION EVALUATION (STRICT)
-   - Check if CV meets degree requirements
-   - "equivalent degree" = Associates degree, technical degree, bootcamp certificate
-   - "equivalent degree" ≠ work experience (unless job explicitly says "degree OR experience")
-   - Examples:
-     * 10 years experience ≠ Bachelor's degree (unless job explicitly allows)
-     * Bootcamp certificate = may qualify as "equivalent degree" (education-based)
-     * Training course alone = NOT a degree equivalent
-   - If CV has no formal degree or equivalent educational qualification, qualifications_score should reflect this gap
+   - Check if CV meets degree requirements EXACTLY as stated
+   - COMPLETED degrees only:
+     * "Bachelor's degree" = B.A., B.Sc., B.S., B.Tech (COMPLETED, not in-progress)
+     * "In-progress degree" (e.g., "Expected 2027") = NOT a completed degree, score ~60-70%
+     * "Master's/PhD in progress" = counts as having Bachelor's (if that was completed)
+   - "equivalent degree" evaluation:
+     * Associates degree, technical college degree = may qualify as "equivalent"
+     * Bootcamp certificate alone = NOT equivalent to Bachelor's degree
+     * Training courses alone = NOT equivalent to degree
+     * Work experience = NOT equivalent to degree (unless job EXPLICITLY says "degree OR X years experience")
+   - Job says "Bachelor's OR equivalent experience":
+     * 5+ years relevant experience CAN substitute for degree
+     * But if job just says "Bachelor's degree", experience doesn't count
+   - If CV lacks completed degree, qualifications_score should reflect the gap proportionally
 
 3. SCORING (0-100 for each category)
    
@@ -226,12 +232,16 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    
    **Qualifications Score:**
    - Does CV meet education/certification requirements?
-   - Scoring:
-     * Formal degree (Bachelor's/Master's/PhD) = 100%
-     * Equivalent degree (Associates, bootcamp, technical degree) = 70-80% (if job allows)
-     * Training/courses only = 50-60%
-     * No formal education = 30-40%
-   - Be strict: work experience does NOT replace degree requirement
+   - Scoring guidelines:
+     * COMPLETED Bachelor's/Master's/PhD in relevant field = 100%
+     * In-progress Bachelor's (expected graduation) = 60-70% (not yet completed)
+     * Completed Associates or technical college degree = 70-80% (only if job accepts "equivalent")
+     * Bootcamp certificate + some experience = 50-60%
+     * Training courses only = 40-50%
+     * No formal education = 20-40%
+   - CRITICAL: Job says "Bachelor's degree" = need completed Bachelor's, not in-progress
+   - Work experience does NOT replace degree requirement unless job explicitly says "OR X years experience"
+   - For jobs requiring specific degrees (CS, Engineering): in-progress degree in correct field scores higher than completed degree in unrelated field
    
    **Overall Score:**
    - Holistic assessment of match quality
@@ -251,21 +261,30 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    - Include technical skills AND qualifications (like degree)
    
    **Recommendations (3-5 actionable steps):**
-   - ONLY recommend practical, achievable actions based on candidate's career stage
-   - DO NOT recommend pursuing degrees if candidate has 5+ years experience (too late in career, not worth time/cost)
-   - DO recommend:
-     * Short-term technical skills that can be learned quickly (e.g., "Learn Apache Spark via Databricks free course (2-3 weeks)", "Build React portfolio project (1-2 months)")
-     * Project-based learning to demonstrate missing skills (e.g., "Create GitHub project showcasing X")
-   - DO NOT recommend:
-     * Long-term education (Bachelor's/Master's) for experienced professionals
-     * Certifications UNLESS the job posting EXPLICITLY says "X certification required" or "X certified preferred"
-       - Example: If job says "AWS experience", DO NOT suggest "Get AWS certification"
-       - Example: If job says "AWS Certified Solutions Architect required", THEN suggest certification
-     * Anything that takes >6 months for someone already working full-time
-     * "Formalizing" or "validating" existing skills via certifications (if they have experience, no cert needed)
-   - Focus on filling must-have technical skill GAPS (missing skills, not existing skills)
-   - Be realistic: if gap is unfillable quickly (e.g., "need 5 years Java experience but candidate has 0"), acknowledge it's a deal-breaker rather than giving false hope
-   - For education gaps: If candidate has 5+ years experience but no degree, acknowledge the gap but note that "experience may substitute in practice—discuss with recruiter"
+   - ONLY recommend practical, achievable actions based on candidate's career stage and current gaps
+   
+   NEVER RECOMMEND:
+   - Pursuing Bachelor's/Master's degrees for candidates with 3+ years experience (too late in career)
+   - Certifications UNLESS job posting EXPLICITLY requires them (e.g., "AWS Certified required")
+   - If CV shows experience with a technology, DO NOT suggest getting certified in it
+   - Anything that takes >6 months for full-time workers
+   - Actions that address non-gaps (don't suggest certifications for skills they already have)
+   
+   DO RECOMMEND:
+   - Learning specific missing MUST-HAVE technical skills via:
+     * Online courses (Udemy, Coursera) - 2-4 weeks
+     * Building portfolio projects - 1-2 months
+     * Contributing to open source - ongoing
+   - For experience gaps: "Seek roles emphasizing [skill]" or "Highlight transferable [related skill]"
+   - For in-progress education: "Complete degree to strengthen qualifications"
+   - For no-degree gap with 5+ years experience: "Note: job may accept experience in lieu of degree—discuss with recruiter"
+   
+   EXAMPLES:
+   - Missing Spark → "Learn Apache Spark via Databricks Community Edition (2-3 weeks)"
+   - Missing React → "Build a React portfolio project showcasing frontend skills (1-2 months)"
+   - Has Azure experience, job wants Azure → DO NOT suggest Azure certification
+   - In-progress CS degree → "Complete Bachelor's degree to meet formal education requirement"
+   - 10 years exp, no degree → "Job requires degree. With your experience, discuss waiver with recruiter."
 
 ---
 
@@ -339,10 +358,9 @@ Return JSON with this EXACT structure:
   ],
   
   "recommendations": [
-    "Obtain Bachelor's degree in Computer Science or related field to meet education requirement",
-    "Gain hands-on experience with Apache Spark or other big data tools (Presto, Trino)",
-    "Consider learning React to add full-stack development capabilities",
-    "Obtain Azure certifications (e.g., Azure Administrator) to formalize cloud expertise"
+    "Job requires Bachelor's degree, but with 10+ years experience, discuss experience-based waiver with recruiter",
+    "Learn Apache Spark via Databricks Community Edition (2-3 weeks) to match nice-to-have big data requirement",
+    "Build React portfolio project (1-2 months) to demonstrate frontend capabilities if interested in full-stack roles"
   ],
   
   "reasoning": {{
@@ -350,7 +368,7 @@ Return JSON with this EXACT structure:
     
     "experience_score_explanation": "10 years backend engineering far exceeds 7-year requirement. Led team of 5-6 engineers satisfies 2+ years management requirement. Experience highly relevant to job: 95%.",
     
-    "qualifications_score_explanation": "CV shows training but no Bachelor's degree. Job requires 'Bachelor's degree or equivalent degree'. Training alone may not qualify as 'equivalent degree'. Reduced score: 70%.",
+    "qualifications_score_explanation": "CV shows training but no Bachelor's degree. Job requires 'Bachelor's degree or equivalent degree'. Training alone does not qualify as 'equivalent degree'. However, 10+ years of professional experience may be considered by some employers. Score: 70% (acknowledging education gap but significant experience).",
     
     "overall_assessment": "Strong candidate with extensive backend engineering and leadership experience. Main concern is lack of formal degree. If company interprets 'equivalent' to include significant experience, candidate is excellent fit. Otherwise, may not meet minimum qualifications. Overall match: 85%."
   }}

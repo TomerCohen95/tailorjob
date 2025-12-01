@@ -66,7 +66,7 @@ After creating the app:
 
 1. In PayPal App settings, go to **Webhooks**
 2. Click **Add Webhook**
-3. Webhook URL: `https://tailorjob-api.onrender.com/api/payments/webhooks/paypal`
+3. Webhook URL: `https://tailorjob.onrender.com/api/payments/webhooks/paypal`
 4. Select Event Types:
    - ✅ `BILLING.SUBSCRIPTION.ACTIVATED`
    - ✅ `BILLING.SUBSCRIPTION.CANCELLED`

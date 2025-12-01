@@ -42,6 +42,14 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+    
+    // If detail is an object (structured error with upgrade info), throw it as-is
+    if (typeof error.detail === 'object' && error.detail !== null) {
+      const err: any = new Error(error.detail.error || error.detail.message || 'Request failed');
+      err.upgrade_info = error.detail;
+      throw err;
+    }
+    
     throw new Error(error.detail || `Request failed with status ${response.status}`);
   }
 
@@ -359,6 +367,7 @@ export const tailorAPI = {
 
 export interface MatchScore {
   overall_score: number;
+  matcher_version?: string;  // Which matcher version was used (v2.x, v3.0, v5.0)
   
   // v2.x fields (legacy)
   deterministic_score?: number;
@@ -395,6 +404,7 @@ export interface MatchScore {
   
   // Legacy nested format (kept for backward compatibility)
   analysis?: {
+    matcher_version?: string;
     strengths: string[];
     gaps: string[];
     recommendations: string[];
@@ -442,6 +452,104 @@ export const matchingAPI = {
 // Health Check
 // ============================================================================
 
+// ============================================================================
+// Payments API
+// ============================================================================
+
+export interface Subscription {
+  id: string;
+  user_id: string;
+  paypal_subscription_id: string;
+  plan_id: string;
+  tier: 'free' | 'basic' | 'pro';
+  status: 'active' | 'cancelled' | 'suspended' | 'expired';
+  start_date: string;
+  end_date?: string;
+  next_billing_date?: string;
+  auto_renew: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UsageData {
+  user_id: string;
+  tier: 'free' | 'basic' | 'pro';
+  period_start: string;
+  period_end: string;
+  cv_uploads: number;
+  cv_limit: number;
+  job_matches: number;
+  match_limit: number;
+  tailored_cvs: number;
+  tailor_limit: number;
+}
+
+export interface CreateSubscriptionResponse {
+  subscription_id: string;
+  approval_url: string;
+  plan_id: string;
+}
+
+export const paymentsAPI = {
+  /**
+   * Create a new PayPal subscription
+   */
+  async createSubscription(tier: 'basic' | 'pro'): Promise<CreateSubscriptionResponse> {
+    return fetchAPI('/payments/subscriptions/create', {
+      method: 'POST',
+      body: JSON.stringify({ tier }),
+    });
+  },
+
+  /**
+   * Activate subscription after PayPal approval
+   */
+  async activateSubscription(subscriptionId: string): Promise<Subscription> {
+    return fetchAPI('/payments/subscriptions/activate', {
+      method: 'POST',
+      body: JSON.stringify({ subscription_id: subscriptionId }),
+    });
+  },
+
+  /**
+   * Get current user's subscription
+   */
+  async getSubscription(): Promise<Subscription | null> {
+    try {
+      return await fetchAPI('/payments/subscriptions/me');
+    } catch (error) {
+      // Return null if no subscription found (free tier)
+      return null;
+    }
+  },
+
+  /**
+   * Cancel current subscription
+   */
+  async cancelSubscription(): Promise<{ message: string }> {
+    return fetchAPI('/payments/subscriptions/cancel', {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Upgrade subscription to a higher tier
+   */
+  async upgradeSubscription(newTier: 'basic' | 'pro'): Promise<CreateSubscriptionResponse> {
+    return fetchAPI('/payments/subscriptions/upgrade', {
+      method: 'POST',
+      body: JSON.stringify({ new_tier: newTier }),
+    });
+  },
+
+  /**
+   * Get current usage statistics
+   */
+  async getUsage(): Promise<UsageData> {
+    return fetchAPI('/payments/usage');
+  },
+};
+
 export const healthAPI = {
   /**
    * Check if the backend is running
@@ -481,6 +589,14 @@ export const apiClient = {
   analyzeMatch: matchingAPI.analyze,
   getMatchScore: matchingAPI.getScore,
   deleteMatchScore: matchingAPI.deleteScore,
+  
+  // Payment operations
+  createSubscription: paymentsAPI.createSubscription,
+  activateSubscription: paymentsAPI.activateSubscription,
+  getSubscription: paymentsAPI.getSubscription,
+  cancelSubscription: paymentsAPI.cancelSubscription,
+  upgradeSubscription: paymentsAPI.upgradeSubscription,
+  getUsage: paymentsAPI.getUsage,
   
   // Health check
   healthCheck: healthAPI.check,

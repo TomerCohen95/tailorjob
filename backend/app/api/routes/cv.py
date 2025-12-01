@@ -3,14 +3,21 @@ from app.api.deps import get_current_user
 from app.services.storage import storage_service
 from app.services.queue import queue_service
 from app.utils.supabase_client import supabase
+from app.utils.usage_limiter import require_feature_dependency
 import hashlib
+from functools import partial
 
 router = APIRouter()
+
+# Create a dependency function for cv_uploads
+async def check_cv_upload_access(user = Depends(get_current_user)):
+    return await require_feature_dependency("cv_uploads", user)
 
 @router.post("/upload")
 async def upload_cv(
     file: UploadFile = File(...),
-    user = Depends(get_current_user)
+    user = Depends(get_current_user),
+    _feature_check: bool = Depends(check_cv_upload_access)
 ):
     """
     Upload a CV file.

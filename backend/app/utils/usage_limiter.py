@@ -9,6 +9,66 @@ from fastapi import HTTPException, status
 
 from app.services.subscription_service import subscription_service
 
+async def require_feature_dependency(feature: str, user):
+    """
+    FastAPI dependency for checking feature access and tracking usage.
+    Use this with Depends() in route signatures.
+    """
+    # Handle both dict and Pydantic object
+    if hasattr(user, 'id'):
+        user_id = user.id
+    elif isinstance(user, dict):
+        user_id = user.get('id') or user.get('user_id')
+    else:
+        user_id = None
+    
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_id required for feature access check"
+        )
+    
+    print(f"🔐 Feature check: {feature} for user {user_id}")
+    
+    # Check if user can use feature
+    allowed, error_message = await subscription_service.can_use_feature(user_id, feature)
+    print(f"{'✅' if allowed else '❌'} Feature check result: allowed={allowed}")
+    
+    if not allowed:
+        # Get user's subscription for upgrade info
+        subscription = await subscription_service.get_user_subscription(user_id)
+        tier = subscription['tier']
+        
+        # Build helpful error message with upgrade CTA
+        if tier == 'free':
+            detail = {
+                "error": error_message,
+                "upgrade_to": "basic",
+                "message": "Upgrade to Basic ($9.99/month) to unlock this feature!"
+            }
+        elif tier == 'basic':
+            detail = {
+                "error": error_message,
+                "upgrade_to": "pro",
+                "message": "Upgrade to Pro ($19.99/month) for unlimited access!"
+            }
+        else:
+            detail = {
+                "error": error_message,
+                "message": "Contact support for assistance."
+            }
+        
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=detail
+        )
+    
+    # Track usage after checking access
+    await subscription_service.track_usage(user_id, feature)
+    
+    return True
+
+
 
 def require_feature(feature: str):
     """
@@ -29,24 +89,40 @@ def require_feature(feature: str):
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # Extract user_id from kwargs
-            user_id = kwargs.get('user_id')
+            # Extract user from kwargs (from Depends(get_current_user))
+            user = kwargs.get('user') or kwargs.get('current_user')
+            
+            # Extract user_id from user dict
+            if user and isinstance(user, dict):
+                user_id = user.get('id')
+            elif isinstance(user, str):
+                user_id = user
+            else:
+                user_id = kwargs.get('user_id')
             
             if not user_id:
                 # Try to find in args (less ideal but fallback)
                 for arg in args:
-                    if isinstance(arg, str) and '-' in arg:  # UUID-like
+                    if isinstance(arg, dict) and 'id' in arg:
+                        user_id = arg['id']
+                        break
+                    elif isinstance(arg, str) and '-' in arg:  # UUID-like
                         user_id = arg
                         break
             
             if not user_id:
+                print(f"❌ No user_id found in decorator for {func.__name__}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="user_id required for feature access check"
                 )
             
+            print(f"👤 Extracted user_id: {user_id}")
+            
             # Check if user can use feature
+            print(f"🔍 Checking if user {user_id} can use feature: {feature}")
             allowed, error_message = await subscription_service.can_use_feature(user_id, feature)
+            print(f"{'✅' if allowed else '❌'} Feature check result: allowed={allowed}, error={error_message}")
             
             if not allowed:
                 # Get user's subscription for upgrade info

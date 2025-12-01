@@ -8,6 +8,7 @@ import { ChatPanel } from '@/components/cv/ChatPanel';
 import { RevisionHistory } from '@/components/cv/RevisionHistory';
 import { MatchScorePanel } from '@/components/cv/MatchScorePanel';
 import { MatchDebugPanel } from '@/components/cv/MatchDebugPanel';
+import { UpgradeDialog } from '@/components/dialogs/UpgradeDialog';
 import { Save, Download, History, Loader2, FileText, Edit3, Target } from 'lucide-react';
 import { mockTailoredCV, mockChatMessages, mockRevisions, ChatMessage, Revision } from '@/lib/mockData';
 import { toast } from 'sonner';
@@ -30,6 +31,8 @@ export default function TailorCV() {
   const [primaryCvId, setPrimaryCvId] = useState<string | null>(null);
   const [cvData, setCvData] = useState<CVWithSections | null>(null);
   const [loadingCv, setLoadingCv] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [upgradeInfo, setUpgradeInfo] = useState<any>(null);
 
   useEffect(() => {
     if (!id) {
@@ -126,9 +129,15 @@ export default function TailorCV() {
       const score = await matchingAPI.analyze(primaryCvId, id);
       setMatchScore(score);
       toast.success('Match analysis complete!');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to analyze match';
-      toast.error(message);
+    } catch (error: any) {
+      // Check if it's a limit error with upgrade info
+      if (error.upgrade_info) {
+        setUpgradeInfo(error.upgrade_info);
+        setShowUpgradeDialog(true);
+      } else {
+        const message = error instanceof Error ? error.message : 'Failed to analyze match';
+        toast.error(message);
+      }
     } finally {
       setAnalyzingMatch(false);
     }
@@ -210,6 +219,13 @@ export default function TailorCV() {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
+      
+      {/* Upgrade Dialog */}
+      <UpgradeDialog
+        open={showUpgradeDialog}
+        onOpenChange={setShowUpgradeDialog}
+        upgradeInfo={upgradeInfo}
+      />
 
       {/* Action Bar */}
       <div className="border-b border-border bg-card">

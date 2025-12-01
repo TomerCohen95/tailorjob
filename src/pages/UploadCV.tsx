@@ -8,6 +8,7 @@ import { ArrowRight, CheckCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { cvAPI } from '@/lib/api';
 import { useCVParsing } from '@/contexts/CVParsingContext';
+import { UpgradeDialog } from '@/components/dialogs/UpgradeDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +30,8 @@ export default function UploadCV() {
   const [duplicateCvInfo, setDuplicateCvInfo] = useState<any>(null);
   const [cvToCancel, setCvToCancel] = useState<string | null>(null);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+  const [upgradeInfo, setUpgradeInfo] = useState<any>(null);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -64,11 +67,17 @@ export default function UploadCV() {
       
       // Redirect to dashboard after successful upload
       navigate('/dashboard');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to upload CV';
-      toast.error('Upload failed', {
-        description: message
-      });
+    } catch (error: any) {
+      // Check if it's a limit error with upgrade info
+      if (error.upgrade_info) {
+        setUpgradeInfo(error.upgrade_info);
+        setShowUpgradeDialog(true);
+      } else {
+        const message = error instanceof Error ? error.message : 'Failed to upload CV';
+        toast.error('Upload failed', {
+          description: message
+        });
+      }
     } finally {
       setIsUploading(false);
     }
@@ -122,6 +131,7 @@ export default function UploadCV() {
 
   return (
     <>
+      {/* Duplicate CV Dialog */}
       <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -153,6 +163,13 @@ export default function UploadCV() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Upgrade Required Dialog */}
+      <UpgradeDialog
+        open={showUpgradeDialog}
+        onOpenChange={setShowUpgradeDialog}
+        upgradeInfo={upgradeInfo}
+      />
 
       <div className="min-h-screen bg-background">
       <Navigation />

@@ -14,6 +14,8 @@ import CVPreview from "./pages/CVPreview";
 import Jobs from "./pages/Jobs";
 import AddJob from "./pages/AddJob";
 import TailorCV from "./pages/TailorCV";
+import Pricing from "./pages/Pricing";
+import Account from "./pages/Account";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +39,8 @@ const App = () => (
             <Route path="/jobs" element={<Jobs />} />
             <Route path="/jobs/add" element={<AddJob />} />
             <Route path="/jobs/:id/tailor" element={<TailorCV />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/account" element={<Account />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

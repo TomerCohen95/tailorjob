@@ -71,7 +71,10 @@ export default function Landing() {
               TailorJob.ai
             </span>
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            <Link to="/pricing">
+              <Button variant="ghost">Pricing</Button>
+            </Link>
             <Link to="/login">
               <Button variant="ghost">Sign In</Button>
             </Link>

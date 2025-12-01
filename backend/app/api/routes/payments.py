@@ -14,6 +14,10 @@ from app.services.subscription_service import subscription_service
 from app.utils.usage_limiter import get_usage_info
 
 
+
+# Quick access dependency
+from app.api.deps import get_current_user
+
 router = APIRouter()
 
 
@@ -46,10 +50,45 @@ class SubscriptionWebhookEvent(BaseModel):
 # SUBSCRIPTION ENDPOINTS
 # ============================================================================
 
+@router.get("/usage")
+async def get_usage(user = Depends(get_current_user)):
+    """
+    Get current usage statistics for the authenticated user.
+    Returns usage data compatible with the frontend Pricing page.
+    """
+    # Extract user_id from user object
+    if hasattr(user, 'id'):
+        user_id = user.id
+    elif isinstance(user, dict):
+        user_id = user.get('id') or user.get('user_id')
+    else:
+        raise HTTPException(status_code=400, detail="Invalid user object")
+    
+    # Get subscription with usage data
+    subscription = await subscription_service.get_user_subscription(user_id)
+    
+    # Format response for frontend - flat structure matching UsageData interface
+    usage_data = {
+        "user_id": user_id,
+        "tier": subscription.get('tier', 'free'),
+        "period_start": subscription.get('current_period_start', datetime.utcnow().isoformat()),
+        "period_end": subscription.get('current_period_end', datetime.utcnow().isoformat()),
+        "cv_uploads": subscription['usage'].get('cvs', 0),
+        "cv_limit": subscription['limits'].get('cvs', 3),
+        "job_matches": subscription['usage'].get('matches', 0),
+        "match_limit": subscription['limits'].get('matches', 5),
+        "tailored_cvs": subscription['usage'].get('tailored', 0),
+        "tailor_limit": subscription['limits'].get('tailored', 0)
+    }
+    
+    return usage_data
+
+
+
 @router.post("/subscriptions/create", response_model=CreateSubscriptionResponse)
 async def create_subscription(
     request: CreateSubscriptionRequest,
-    user_id: str = Header(..., alias="X-User-Id")
+    user = Depends(get_current_user)
 ):
     """
     Create a new PayPal subscription.
@@ -58,6 +97,14 @@ async def create_subscription(
     Returns approval URL for user to complete subscription on PayPal.
     """
     try:
+        # Extract user_id from user object
+        if hasattr(user, 'id'):
+            user_id = user.id
+        elif isinstance(user, dict):
+            user_id = user.get('id') or user.get('user_id')
+        else:
+            raise HTTPException(status_code=400, detail="Invalid user object")
+        
         # Get user info for email (optional)
         from app.utils.supabase_client import supabase
         user_result = supabase.table('profiles').select('email').eq('id', user_id).single().execute()
@@ -100,13 +147,21 @@ async def create_subscription(
 @router.post("/subscriptions/activate")
 async def activate_subscription(
     subscription_id: str,
-    user_id: str = Header(..., alias="X-User-Id")
+    user = Depends(get_current_user)
 ):
     """
     Activate subscription after user approves on PayPal.
     Called by frontend after PayPal redirects back.
     """
     try:
+        # Extract user_id from user object
+        if hasattr(user, 'id'):
+            user_id = user.id
+        elif isinstance(user, dict):
+            user_id = user.get('id') or user.get('user_id')
+        else:
+            raise HTTPException(status_code=400, detail="Invalid user object")
+        
         # Get subscription details from PayPal
         paypal_subscription = paypal_service.get_subscription(subscription_id)
         
@@ -156,11 +211,17 @@ async def activate_subscription(
 
 
 @router.get("/subscriptions/me")
-async def get_my_subscription(
-    user_id: str = Header(..., alias="X-User-Id")
-):
+async def get_my_subscription(user = Depends(get_current_user)):
     """Get current user's subscription details with usage"""
     try:
+        # Extract user_id from user object
+        if hasattr(user, 'id'):
+            user_id = user.id
+        elif isinstance(user, dict):
+            user_id = user.get('id') or user.get('user_id')
+        else:
+            raise HTTPException(status_code=400, detail="Invalid user object")
+        
         subscription = await subscription_service.get_user_subscription(user_id)
         usage_info = await get_usage_info(user_id)
         
@@ -179,13 +240,21 @@ async def get_my_subscription(
 @router.post("/subscriptions/cancel")
 async def cancel_subscription(
     reason: Optional[str] = "User requested cancellation",
-    user_id: str = Header(..., alias="X-User-Id")
+    user = Depends(get_current_user)
 ):
     """
     Cancel user's subscription.
     Subscription remains active until end of billing period.
     """
     try:
+        # Extract user_id from user object
+        if hasattr(user, 'id'):
+            user_id = user.id
+        elif isinstance(user, dict):
+            user_id = user.get('id') or user.get('user_id')
+        else:
+            raise HTTPException(status_code=400, detail="Invalid user object")
+        
         # Get user's subscription
         subscription = await subscription_service.get_user_subscription(user_id)
         
@@ -227,7 +296,7 @@ async def cancel_subscription(
 async def upgrade_subscription(
     new_tier: str,
     new_plan_id: str,
-    user_id: str = Header(..., alias="X-User-Id")
+    user = Depends(get_current_user)
 ):
     """
     Upgrade to a higher tier.
@@ -237,6 +306,14 @@ async def upgrade_subscription(
     For now, it creates a new subscription (user must approve).
     """
     try:
+        # Extract user_id from user object
+        if hasattr(user, 'id'):
+            user_id = user.id
+        elif isinstance(user, dict):
+            user_id = user.get('id') or user.get('user_id')
+        else:
+            raise HTTPException(status_code=400, detail="Invalid user object")
+        
         # Validate tier
         if new_tier not in ['basic', 'pro', 'enterprise']:
             raise HTTPException(
@@ -270,18 +347,6 @@ async def upgrade_subscription(
         )
 
 
-@router.get("/usage")
-async def get_usage(
-    user_id: str = Header(..., alias="X-User-Id")
-):
-    """Get current usage and limits"""
-    try:
-        return await get_usage_info(user_id)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get usage: {str(e)}"
-        )
 
 
 # ============================================================================

@@ -3,14 +3,21 @@ from typing import Dict, Any, List
 from app.api.deps import get_current_user
 from app.utils.supabase_client import supabase
 from app.services.queue import queue_service
+from app.utils.usage_limiter import require_feature_dependency
 
 router = APIRouter()
+
+# Dependency function for tailored CV access check
+async def check_tailored_cv_access(user = Depends(get_current_user)):
+    """Check if user can create tailored CVs"""
+    return await require_feature_dependency("tailored_cvs", user)
 
 @router.post("/tailor/{cv_id}/{job_id}")
 async def tailor_cv(
     cv_id: str,
     job_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    _feature_check: bool = Depends(check_tailored_cv_access)
 ):
     """
     Tailor a CV for a specific job posting
