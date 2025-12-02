@@ -12,6 +12,7 @@ import json
 from app.services.paypal_service import paypal_service
 from app.services.subscription_service import subscription_service
 from app.utils.usage_limiter import get_usage_info
+from app.config import settings
 
 
 
@@ -138,21 +139,31 @@ async def create_subscription(
         )
     
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"❌ Subscription creation error: {str(e)}")
+        print(f"📝 Full traceback:\n{error_details}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create subscription: {str(e)}"
         )
 
 
+class ActivateSubscriptionRequest(BaseModel):
+    """Request to activate a subscription"""
+    subscription_id: str
+
+
 @router.post("/subscriptions/activate")
 async def activate_subscription(
-    subscription_id: str,
+    request: ActivateSubscriptionRequest,
     user = Depends(get_current_user)
 ):
     """
     Activate subscription after user approves on PayPal.
     Called by frontend after PayPal redirects back.
     """
+    subscription_id = request.subscription_id
     try:
         # Extract user_id from user object
         if hasattr(user, 'id'):
@@ -171,9 +182,16 @@ async def activate_subscription(
                 detail=f"Subscription not active: {paypal_subscription['status']}"
             )
         
-        # Extract tier from plan_id
+        # Extract tier from plan_id by looking up in PLAN_IDS
         plan_id = paypal_subscription['plan_id']
-        tier = 'basic' if 'BASIC' in plan_id else 'pro' if 'PRO' in plan_id else 'basic'
+        
+        # Reverse lookup: find which tier this plan_id belongs to
+        tier = 'basic'  # default
+        for plan_key, plan_value in paypal_service.PLAN_IDS.items():
+            if plan_value == plan_id:
+                # Extract tier from plan_key (e.g., 'basic_monthly' -> 'basic')
+                tier = plan_key.split('_')[0]
+                break
         
         # Get billing info
         billing_info = paypal_subscription.get('billing_info', {})
@@ -292,10 +310,14 @@ async def cancel_subscription(
         )
 
 
+class UpgradeSubscriptionRequest(BaseModel):
+    """Request to upgrade subscription"""
+    new_tier: str
+
+
 @router.post("/subscriptions/upgrade")
 async def upgrade_subscription(
-    new_tier: str,
-    new_plan_id: str,
+    request: UpgradeSubscriptionRequest,
     user = Depends(get_current_user)
 ):
     """
@@ -305,6 +327,7 @@ async def upgrade_subscription(
     Note: In production, this should update the PayPal subscription plan.
     For now, it creates a new subscription (user must approve).
     """
+    new_tier = request.new_tier
     try:
         # Extract user_id from user object
         if hasattr(user, 'id'):
@@ -330,13 +353,52 @@ async def upgrade_subscription(
                 detail="Already on this tier"
             )
         
-        # For now, return instructions to create new subscription
-        # In production, use PayPal's revision API to update plan
-        return {
-            "message": "To upgrade, please create a new subscription",
-            "action": "create_new_subscription",
-            "plan_id": new_plan_id
-        }
+        # Determine the plan_id for the new tier
+        plan_key = f"{new_tier}_monthly"  # e.g., 'pro_monthly'
+        
+        # Get the actual PayPal plan ID
+        paypal_plan_id = paypal_service.PLAN_IDS.get(plan_key)
+        if not paypal_plan_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid plan: {plan_key}"
+            )
+        
+        # Get user info for email (optional)
+        from app.utils.supabase_client import supabase
+        user_result = supabase.table('profiles').select('email').eq('id', user_id).single().execute()
+        user_email = user_result.data.get('email') if user_result.data else None
+        
+        # Get current URL for return/cancel URLs
+        # In production, this should come from settings or request
+        base_url = "http://localhost:8080"  # Frontend URL
+        
+        # Create new subscription with PayPal (upgrade flow)
+        paypal_response = paypal_service.create_subscription(
+            plan_id=plan_key,
+            return_url=f"{base_url}/account?success=true",
+            cancel_url=f"{base_url}/pricing?cancelled=true",
+            user_email=user_email
+        )
+        
+        # Extract approval URL
+        approval_url = None
+        for link in paypal_response.get('links', []):
+            if link['rel'] == 'approve':
+                approval_url = link['href']
+                break
+        
+        if not approval_url:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to get PayPal approval URL"
+            )
+        
+        return CreateSubscriptionResponse(
+            subscription_id=paypal_response['id'],
+            approval_url=approval_url,
+            status=paypal_response['status']
+        )
     
     except HTTPException:
         raise

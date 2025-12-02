@@ -39,8 +39,67 @@ export default function Account() {
 
   useEffect(() => {
     checkAuth();
+    handlePayPalReturn();
     loadAccountData();
   }, []);
+
+  const handlePayPalReturn = async () => {
+    // Check if we're returning from PayPal
+    const params = new URLSearchParams(window.location.search);
+    const subscriptionId = params.get('subscription_id');
+    const token = params.get('token');
+    
+    if (subscriptionId || token) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const API_BASE_URL = import.meta.env.PROD
+          ? 'https://tailorjob-api.onrender.com/api'
+          : 'http://localhost:8000/api';
+
+        // Extract subscription ID from token or use subscription_id parameter
+        const subId = subscriptionId || token;
+
+        toast({
+          title: 'Processing subscription...',
+          description: 'Please wait while we activate your subscription',
+        });
+
+        const response = await fetch(`${API_BASE_URL}/payments/subscriptions/activate`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ subscription_id: subId }),
+        });
+
+        if (response.ok) {
+          toast({
+            title: 'Subscription Activated!',
+            description: 'Your subscription is now active. Enjoy your premium features!',
+          });
+          
+          // Clear URL parameters
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          // Reload data to show new subscription
+          setTimeout(() => loadAccountData(), 1000);
+        } else {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to activate subscription');
+        }
+      } catch (error) {
+        console.error('Subscription activation error:', error);
+        toast({
+          title: 'Activation Error',
+          description: error instanceof Error ? error.message : 'Failed to activate subscription',
+          variant: 'destructive',
+        });
+      }
+    }
+  };
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();

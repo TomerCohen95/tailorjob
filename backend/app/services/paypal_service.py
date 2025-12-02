@@ -17,12 +17,12 @@ from app.config import settings
 class PayPalService:
     """Service for interacting with PayPal REST API v2"""
     
-    # PayPal Plan IDs (created in PayPal Dashboard)
+    # PayPal Plan IDs (created via API)
     PLAN_IDS = {
-        'basic_monthly': 'P-BASIC-MONTHLY',  # Replace with actual plan ID
-        'basic_yearly': 'P-BASIC-YEARLY',
-        'pro_monthly': 'P-PRO-MONTHLY',
-        'pro_yearly': 'P-PRO-YEARLY',
+        'basic_monthly': 'P-30E54712780658625NEXHVMQ',  # Basic $9.99/month
+        'basic_yearly': 'P-BASIC-YEARLY',  # Not created yet
+        'pro_monthly': 'P-6XC856007M7791230NEXHVMY',  # Pro $19.99/month
+        'pro_yearly': 'P-PRO-YEARLY',  # Not created yet
     }
     
     def __init__(self):
@@ -133,6 +133,9 @@ class PayPalService:
         if not paypal_plan_id:
             raise ValueError(f"Unknown plan_id: {plan_id}")
         
+        print(f"🔍 Creating subscription with plan: {plan_id} -> {paypal_plan_id}")
+        print(f"📍 PayPal Base URL: {self.base_url}")
+        
         data = {
             "plan_id": paypal_plan_id,
             "application_context": {
@@ -151,7 +154,15 @@ class PayPalService:
                 "email_address": user_email
             }
         
-        return self._make_request("POST", "/v1/billing/subscriptions", data=data)
+        print(f"📤 Request data: {json.dumps(data, indent=2)}")
+        
+        try:
+            result = self._make_request("POST", "/v1/billing/subscriptions", data=data)
+            print(f"✅ PayPal response: {json.dumps(result, indent=2)}")
+            return result
+        except requests.exceptions.HTTPError as e:
+            print(f"❌ PayPal error response: {e.response.text if hasattr(e, 'response') else 'No response'}")
+            raise
     
     def get_subscription(self, subscription_id: str) -> Dict[str, Any]:
         """

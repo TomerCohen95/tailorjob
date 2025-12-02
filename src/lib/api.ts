@@ -495,9 +495,14 @@ export const paymentsAPI = {
    * Create a new PayPal subscription
    */
   async createSubscription(tier: 'basic' | 'pro'): Promise<CreateSubscriptionResponse> {
+    const currentUrl = window.location.origin;
     return fetchAPI('/payments/subscriptions/create', {
       method: 'POST',
-      body: JSON.stringify({ tier }),
+      body: JSON.stringify({
+        plan_id: tier === 'basic' ? 'basic_monthly' : 'pro_monthly',
+        return_url: `${currentUrl}/account?success=true`,
+        cancel_url: `${currentUrl}/pricing?cancelled=true`,
+      }),
     });
   },
 

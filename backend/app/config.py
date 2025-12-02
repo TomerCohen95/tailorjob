@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     PAYPAL_BASE_URL: str = "https://api-m.sandbox.paypal.com"  # sandbox or production
     PAYPAL_WEBHOOK_ID: str = ""
     
+    # Frontend URL for PayPal redirects
+    FRONTEND_URL: Optional[str] = None  # If not set, will use request origin
+    
     CORS_ORIGINS: str = '["http://localhost:5173","http://localhost:8080"]'
     
     # Matcher Version Control
