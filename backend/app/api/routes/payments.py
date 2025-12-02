@@ -370,8 +370,8 @@ async def upgrade_subscription(
         user_email = user_result.data.get('email') if user_result.data else None
         
         # Get current URL for return/cancel URLs
-        # In production, this should come from settings or request
-        base_url = "http://localhost:8080"  # Frontend URL
+        # Use FRONTEND_URL from settings, fallback to localhost:8080 for dev
+        base_url = settings.FRONTEND_URL or "http://localhost:8080"
         
         # Create new subscription with PayPal (upgrade flow)
         paypal_response = paypal_service.create_subscription(
