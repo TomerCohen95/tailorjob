@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 // Use environment variable if set, otherwise use localhost for dev
 const API_BASE_URL = import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD
-    ? 'https://tailorjob.onrender.com/api'  // Production backend on Render
+    ? 'https://tailorjob-api.azurewebsites.net/api'  // Production backend on Azure
     : 'http://localhost:8000/api'           // Local development
   );
 
@@ -20,7 +20,7 @@ async function getAuthToken(): Promise<string | null> {
  */
 async function fetchAPI(endpoint: string, options: RequestInit = {}) {
   const token = await getAuthToken();
-  
+
   if (!token) {
     throw new Error('Not authenticated');
   }
@@ -42,14 +42,14 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-    
+
     // If detail is an object (structured error with upgrade info), throw it as-is
     if (typeof error.detail === 'object' && error.detail !== null) {
       const err: any = new Error(error.detail.error || error.detail.message || 'Request failed');
       err.upgrade_info = error.detail;
       throw err;
     }
-    
+
     throw new Error(error.detail || `Request failed with status ${response.status}`);
   }
 
@@ -110,7 +110,7 @@ export const cvAPI = {
   async upload(file: File): Promise<CV> {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     return fetchAPI('/cv/upload', {
       method: 'POST',
       body: formData,
@@ -368,23 +368,23 @@ export const tailorAPI = {
 export interface MatchScore {
   overall_score: number;
   matcher_version?: string;  // Which matcher version was used (v2.x, v3.0, v5.0)
-  
+
   // v2.x fields (legacy)
   deterministic_score?: number;
   fit_score?: number;
   must_have_score?: number;
   nice_to_have_score?: number;
-  
+
   // v3.0 fields (AI-first)
   ai_holistic_score?: number;
   component_average?: number;
   scoring_method?: string;
-  
+
   // Component scores (both versions)
   skills_score?: number;
   experience_score?: number;
   qualifications_score?: number;
-  
+
   // v3.0 domain analysis
   domain_fit?: 'SAME' | 'ADJACENT' | 'ORTHOGONAL' | 'UNKNOWN';
   domain_mismatch?: boolean;
@@ -392,7 +392,7 @@ export interface MatchScore {
   domain_explanation?: string;
   transferability_assessment?: string;
   reasoning?: string;
-  
+
   // Match details (flattened for backward compatibility)
   strengths?: string[];
   gaps?: string[];
@@ -401,7 +401,7 @@ export interface MatchScore {
   missing_skills?: string[];
   matched_qualifications?: string[];
   missing_qualifications?: string[];
-  
+
   // Legacy nested format (kept for backward compatibility)
   analysis?: {
     matcher_version?: string;
@@ -413,7 +413,7 @@ export interface MatchScore {
     matched_qualifications: string[];
     missing_qualifications: string[];
   };
-  
+
   cached: boolean;
   created_at: string;
 }
@@ -575,26 +575,26 @@ export const apiClient = {
   getCV: cvAPI.get,
   uploadCV: cvAPI.upload,
   deleteCV: cvAPI.delete,
-  
+
   // Job operations
   getJobs: jobsAPI.list,
   getJob: jobsAPI.get,
   createJob: jobsAPI.create,
   updateJob: jobsAPI.update,
   deleteJob: jobsAPI.delete,
-  
+
   // Tailor operations
   tailorCV: tailorAPI.tailor,
   getTailoredCV: tailorAPI.get,
   getTailoringStatus: tailorAPI.getStatus,
   sendChatMessage: tailorAPI.sendMessage,
   getChatHistory: tailorAPI.getChatHistory,
-  
+
   // Matching operations
   analyzeMatch: matchingAPI.analyze,
   getMatchScore: matchingAPI.getScore,
   deleteMatchScore: matchingAPI.deleteScore,
-  
+
   // Payment operations
   createSubscription: paymentsAPI.createSubscription,
   activateSubscription: paymentsAPI.activateSubscription,
@@ -602,7 +602,7 @@ export const apiClient = {
   cancelSubscription: paymentsAPI.cancelSubscription,
   upgradeSubscription: paymentsAPI.upgradeSubscription,
   getUsage: paymentsAPI.getUsage,
-  
+
   // Health check
   healthCheck: healthAPI.check,
 };
