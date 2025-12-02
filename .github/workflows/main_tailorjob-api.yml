@@ -14,22 +14,30 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python version
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       with:
         python-version: '3.11'
     
-    - name: Build using AppService-Build
-      uses: azure/appservice-build@v2
-      with:
-        platform: python
-        platform-version: '3.11'
+    - name: Create and activate virtual environment
+      working-directory: ./backend
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Zip backend files for deployment
+      run: |
+        cd backend
+        zip -r ../backend.zip . -x "venv/*" -x "__pycache__/*" -x "*.pyc"
     
     - name: 'Deploy to Azure Web App'
-      uses: azure/webapps-deploy@v2
-      with: 
+      uses: azure/webapps-deploy@v3
+      with:
         app-name: 'tailorjob-api'
         slot-name: 'production'
         publish-profile: ${{ secrets.AzureAppService_PublishProfile_86d3ef7b510d429eac8ae3d5c23752a3 }}
+        package: './backend.zip'
