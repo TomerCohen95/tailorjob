@@ -24,6 +24,19 @@ class Settings(BaseSettings):
     AZURE_OPENAI_DEPLOYMENT_GPT4: str = "gpt-4"        # For v5.0 analysis
     AZURE_OPENAI_API_VERSION: str = "2024-08-01-preview"
     
+    # PayPal Configuration
+    PAYPAL_CLIENT_ID: str = ""
+    PAYPAL_SECRET: str = ""
+    PAYPAL_BASE_URL: str = "https://api-m.sandbox.paypal.com"  # sandbox or production
+    PAYPAL_WEBHOOK_ID: str = ""
+    
+    # PayPal Plan IDs (can be sandbox or production)
+    PAYPAL_PLAN_ID_BASIC: str = "P-30E54712780658625NEXHVMQ"  # Default: sandbox
+    PAYPAL_PLAN_ID_PRO: str = "P-6XC856007M7791230NEXHVMY"  # Default: sandbox
+    
+    # Frontend URL for PayPal redirects
+    FRONTEND_URL: Optional[str] = None  # If not set, will use request origin
+    
     CORS_ORIGINS: str = '["http://localhost:5173","http://localhost:8080"]'
     
     # Matcher Version Control

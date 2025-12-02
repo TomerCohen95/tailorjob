@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { FileText, Home, Briefcase, Upload, LogOut } from 'lucide-react';
+import { FileText, Home, Briefcase, Upload, LogOut, CreditCard, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +30,7 @@ export function Navigation() {
     { path: '/dashboard', label: 'Dashboard', icon: Home },
     { path: '/upload-cv', label: 'Upload CV', icon: Upload },
     { path: '/jobs', label: 'Jobs', icon: Briefcase },
+    { path: '/pricing', label: 'Pricing', icon: CreditCard },
   ];
 
   return (
@@ -67,8 +68,17 @@ export function Navigation() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
+            <Link to="/account">
+              <Button
+                variant="outline"
+                className="gap-2"
+              >
+                <User className="h-4 w-4" />
+                Account
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
               onClick={handleSignOut}
               className="gap-2"
             >

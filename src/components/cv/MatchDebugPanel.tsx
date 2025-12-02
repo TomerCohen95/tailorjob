@@ -28,6 +28,7 @@ export function MatchDebugPanel({ job, cvData, matchScore }: MatchDebugPanelProp
     cv: cvData,
     match_analysis: matchScore ? {
       overall_score: matchScore.overall_score,
+      matcher_version: matchScore.matcher_version || matchScore.analysis?.matcher_version || 'unknown',
       
       // v2.x fields (if present)
       deterministic_score: matchScore.deterministic_score,
@@ -115,7 +116,7 @@ export function MatchDebugPanel({ job, cvData, matchScore }: MatchDebugPanelProp
         <CardContent>
           <div className="space-y-4">
             {/* Data Summary */}
-            <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
+            <div className="grid grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
               <div>
                 <div className="text-sm font-medium text-muted-foreground">Job</div>
                 <div className="text-lg font-semibold">{job?.title || 'Not loaded'}</div>
@@ -128,6 +129,12 @@ export function MatchDebugPanel({ job, cvData, matchScore }: MatchDebugPanelProp
                 <div className="text-sm font-medium text-muted-foreground">Match Score</div>
                 <div className="text-lg font-semibold">
                   {matchScore ? `${matchScore.overall_score}%` : 'Not analyzed'}
+                </div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground">Matcher</div>
+                <div className="text-lg font-semibold">
+                  {matchScore ? (matchScore.matcher_version || matchScore.analysis?.matcher_version || 'v2.x') : 'N/A'}
                 </div>
               </div>
             </div>
