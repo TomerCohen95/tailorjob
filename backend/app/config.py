@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     PAYPAL_BASE_URL: str = "https://api-m.sandbox.paypal.com"  # sandbox or production
     PAYPAL_WEBHOOK_ID: str = ""
     
+    # PayPal Plan IDs (can be sandbox or production)
+    PAYPAL_PLAN_ID_BASIC: str = "P-30E54712780658625NEXHVMQ"  # Default: sandbox
+    PAYPAL_PLAN_ID_PRO: str = "P-6XC856007M7791230NEXHVMY"  # Default: sandbox
+    
     # Frontend URL for PayPal redirects
     FRONTEND_URL: Optional[str] = None  # If not set, will use request origin
     

@@ -17,14 +17,6 @@ from app.config import settings
 class PayPalService:
     """Service for interacting with PayPal REST API v2"""
     
-    # PayPal Plan IDs (created via API)
-    PLAN_IDS = {
-        'basic_monthly': 'P-30E54712780658625NEXHVMQ',  # Basic $9.99/month
-        'basic_yearly': 'P-BASIC-YEARLY',  # Not created yet
-        'pro_monthly': 'P-6XC856007M7791230NEXHVMY',  # Pro $19.99/month
-        'pro_yearly': 'P-PRO-YEARLY',  # Not created yet
-    }
-    
     def __init__(self):
         self.base_url = settings.PAYPAL_BASE_URL
         self.client_id = settings.PAYPAL_CLIENT_ID
@@ -32,6 +24,12 @@ class PayPalService:
         self.webhook_id = settings.PAYPAL_WEBHOOK_ID
         self._access_token: Optional[str] = None
         self._token_expires_at: Optional[datetime] = None
+        
+        # PayPal Plan IDs from config (supports both sandbox and production)
+        self.PLAN_IDS = {
+            'basic_monthly': settings.PAYPAL_PLAN_ID_BASIC,
+            'pro_monthly': settings.PAYPAL_PLAN_ID_PRO,
+        }
     
     def _get_access_token(self) -> str:
         """
