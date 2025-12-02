@@ -37,7 +37,7 @@ export default function CVPreview() {
             const primaryCV = cvs.find(cv => cv.is_primary) || cvs[0];
             const data = await apiClient.getCV(primaryCV.id);
             setCvStatus(data.cv?.status || 'unknown');
-            
+
             if (data.sections) {
               // Parse JSON strings from database
               setSections({
@@ -61,7 +61,7 @@ export default function CVPreview() {
       try {
         const data = await apiClient.getCV(cvId);
         setCvStatus(data.cv?.status || 'unknown');
-        
+
         if (data.sections) {
           // Parse JSON strings from database
           setSections({
@@ -93,7 +93,7 @@ export default function CVPreview() {
             const data = await apiClient.getCV(targetCvId);
             const newStatus = data.cv?.status || 'unknown';
             setCvStatus(newStatus);
-            
+
             // If parsing completed, update sections and stop polling
             if (newStatus === 'parsed' && data.sections) {
               setSections({
@@ -188,7 +188,7 @@ export default function CVPreview() {
         </div>
       );
     }
-    
+
     // No CV at all - show upload prompt
     return (
       <div className="min-h-screen bg-background">
@@ -240,7 +240,7 @@ export default function CVPreview() {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8 flex items-center justify-between">

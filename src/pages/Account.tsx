@@ -48,14 +48,14 @@ export default function Account() {
     const params = new URLSearchParams(window.location.search);
     const subscriptionId = params.get('subscription_id');
     const token = params.get('token');
-    
+
     if (subscriptionId || token) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
         const API_BASE_URL = import.meta.env.PROD
-          ? 'https://tailorjob-api.onrender.com/api'
+          ? 'https://tailorjob-api.azurewebsites.net/api'
           : 'http://localhost:8000/api';
 
         // Extract subscription ID from token or use subscription_id parameter
@@ -80,10 +80,10 @@ export default function Account() {
             title: 'Subscription Activated!',
             description: 'Your subscription is now active. Enjoy your premium features!',
           });
-          
+
           // Clear URL parameters
           window.history.replaceState({}, document.title, window.location.pathname);
-          
+
           // Reload data to show new subscription
           setTimeout(() => loadAccountData(), 1000);
         } else {
@@ -119,7 +119,7 @@ export default function Account() {
       }
 
       const API_BASE_URL = import.meta.env.PROD
-        ? 'https://tailorjob-api.onrender.com/api'
+        ? 'https://tailorjob-api.azurewebsites.net/api'
         : 'http://localhost:8000/api';
 
       // Fetch subscription info
@@ -264,7 +264,7 @@ export default function Account() {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Account & Subscription</h1>
@@ -310,8 +310,8 @@ export default function Account() {
 
               <div className="flex gap-2">
                 {tier === 'free' && (
-                  <Button 
-                    className="w-full" 
+                  <Button
+                    className="w-full"
                     onClick={() => navigate('/pricing')}
                   >
                     <TrendingUp className="mr-2 h-4 w-4" />
@@ -320,27 +320,27 @@ export default function Account() {
                 )}
                 {tier === 'basic' && (
                   <>
-                    <Button 
-                      className="flex-1" 
+                    <Button
+                      className="flex-1"
                       onClick={() => navigate('/pricing')}
                     >
                       <TrendingUp className="mr-2 h-4 w-4" />
                       Upgrade to Pro
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="flex-1"
-                      onClick={() => {/* Handle cancel */}}
+                      onClick={() => {/* Handle cancel */ }}
                     >
                       Cancel Plan
                     </Button>
                   </>
                 )}
                 {tier === 'pro' && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full"
-                    onClick={() => {/* Handle cancel */}}
+                    onClick={() => {/* Handle cancel */ }}
                   >
                     Cancel Subscription
                   </Button>
@@ -439,11 +439,11 @@ export default function Account() {
 
               <div className="bg-muted p-4 rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  {tier === 'pro' 
+                  {tier === 'pro'
                     ? '🎉 You have unlimited access to all features!'
                     : tier === 'basic'
-                    ? 'Upgrade to Pro for unlimited access to all features.'
-                    : 'Upgrade to a paid plan to increase your limits and unlock premium features.'
+                      ? 'Upgrade to Pro for unlimited access to all features.'
+                      : 'Upgrade to a paid plan to increase your limits and unlock premium features.'
                   }
                 </p>
               </div>
@@ -464,7 +464,7 @@ export default function Account() {
                     {tier === 'free' ? 'Unlock Premium Features' : 'Upgrade to Pro'}
                   </h3>
                   <p className="text-muted-foreground mb-4">
-                    {tier === 'free' 
+                    {tier === 'free'
                       ? 'Get more CV uploads, job matches, and advanced matching algorithms with a paid plan.'
                       : 'Get unlimited everything plus premium matching and 24/7 support with Pro.'
                     }
