@@ -83,11 +83,17 @@ class SubscriptionService:
         
         subscription = result.data
         
+        # If subscription is cancelled or expired, use free tier limits
+        tier = subscription['tier']
+        status = subscription['status']
+        if status in ['cancelled', 'expired']:
+            tier = 'free'
+        
         return {
-            "tier": subscription['tier'],
-            "status": subscription['status'],
+            "tier": tier,
+            "status": status,
             "usage": await self.get_current_usage(user_id),
-            "limits": self.TIER_LIMITS[subscription['tier']],
+            "limits": self.TIER_LIMITS[tier],
             "subscription_id": subscription['paypal_subscription_id'],
             "current_period_end": subscription['current_period_end'],
             "cancelled_at": subscription.get('cancelled_at')
@@ -268,16 +274,24 @@ class SubscriptionService:
         if cancelled_at:
             update_data['cancelled_at'] = cancelled_at.isoformat()
         
+        # If cancelling or expiring, also downgrade to free tier
+        if status in ['cancelled', 'expired']:
+            update_data['tier'] = 'free'
+        
         result = supabase.table('subscriptions').update(
             update_data
         ).eq('paypal_subscription_id', paypal_subscription_id).execute()
         
-        # Also update profile status
+        # Also update profile status and tier
         if result.data:
             user_id = result.data[0]['user_id']
-            supabase.table('profiles').update({
-                'subscription_status': status
-            }).eq('id', user_id).execute()
+            profile_update = {'subscription_status': status}
+            
+            # Update profile tier to free if cancelled/expired
+            if status in ['cancelled', 'expired']:
+                profile_update['subscription_tier'] = 'free'
+            
+            supabase.table('profiles').update(profile_update).eq('id', user_id).execute()
         
         return bool(result.data)
     
