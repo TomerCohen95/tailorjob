@@ -1,10 +1,16 @@
 """
-CV Matcher v5.0 - Fully AI-driven matching with GPT-4.
-No computation, no formulas - just pure AI reasoning.
+CV Matcher v5.1 - Fully AI-driven matching with GPT-4.
+Enhanced with discipline matching and must-have penalty logic.
 
 Architecture:
 1. Extract CV facts (GPT-4o-mini, temp=0.0)
 2. Analyze match (GPT-4, temp=0.2) - does EVERYTHING
+
+v5.1 Changes:
+- Added discipline/role type matching guidelines
+- Strengthened must-have penalty logic
+- Added discipline mismatch cap (max 60% for career pivots)
+- Clarified transferability levels (SRE ↔ DevOps = high, SWE → DevOps = low)
 """
 
 from typing import Dict, Any
@@ -40,9 +46,9 @@ class CVMatcherV5:
         self.gpt4_client = gpt4_client
         self.gpt4_deployment = gpt4_deployment
         
-        print(f"🔧 Initializing CV Matcher v5.0 (Fully AI-Driven)")
+        print(f"🔧 Initializing CV Matcher v5.1 (Enhanced Discipline Matching)")
         print(f"   GPT-4 Deployment: {gpt4_deployment}")
-        print(f"✅ CV Matcher v5.0 initialized successfully")
+        print(f"✅ CV Matcher v5.1 initialized successfully")
     
     async def analyze_match(
         self,
@@ -60,7 +66,7 @@ class CVMatcherV5:
             Complete analysis with scores, matches, gaps, explanations
         """
         print("\n" + "="*60)
-        print(f"🎯 [v5.0] Analyzing CV match for job: {job_data.get('title', 'Unknown')}")
+        print(f"🎯 [v5.1] Analyzing CV match for job: {job_data.get('title', 'Unknown')}")
         print("="*60)
         
         try:
@@ -77,13 +83,13 @@ class CVMatcherV5:
             analysis["scoring_method"] = "GPT-4 holistic reasoning (no computation)"
             
             print("\n" + "="*60)
-            print(f"✅ [v5.0] Match analysis complete: {analysis['overall_score']}% match")
+            print(f"✅ [v5.1] Match analysis complete: {analysis['overall_score']}% match")
             print("="*60 + "\n")
             
             return analysis
             
         except Exception as e:
-            print(f"❌ [v5.0] Match analysis failed: {str(e)}")
+            print(f"❌ [v5.1] Match analysis failed: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
@@ -223,12 +229,50 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    - Calculate based on coverage of required skills
    
    **Experience Score:**
-   - Does candidate have required years and relevant background?
-   - Consider:
-     * Years: Does total_years >= required_years?
-     * Relevance: Is experience in same/similar domain?
-     * Leadership: If management required, does CV show team leadership?
-   - 100% if all experience requirements met, scale down proportionally if not
+   - CRITICAL: Match the candidate's ROLE/DISCIPLINE to the job's requirements, not just years
+   
+   Role Matching Principles:
+   - Many jobs specify a DISCIPLINE/SPECIALTY (e.g., "DevOps Engineer", "Data Scientist", "Security Engineer", "ML Engineer")
+   - Evaluate if CV demonstrates professional work IN THAT DISCIPLINE, not just adjacent or transferable skills
+   - Generic "Software Engineer" experience does NOT automatically equal specialized disciplines
+   
+   Discipline Transferability Guidelines (use judgment, these are examples):
+   
+   HIGH TRANSFERABILITY (90-100% credit):
+   - SRE ↔ DevOps Engineer (functionally equivalent roles)
+   - ML Engineer ↔ Data Scientist (overlapping work)
+   - Backend Engineer ↔ Backend Developer (same discipline, different title)
+   - Cloud Engineer ↔ Infrastructure Engineer (same domain)
+   
+   MEDIUM TRANSFERABILITY (60-80% credit):
+   - Platform Engineer → DevOps Engineer (adjacent, some overlap)
+   - Full-Stack Engineer → Backend Engineer (partial specialization)
+   - Data Engineer → Data Scientist (same domain, different focus)
+   - Security Engineer → DevOps Engineer (if security + infrastructure work shown)
+   
+   LOW TRANSFERABILITY (30-50% credit):
+   - Software Engineer → DevOps Engineer (different discipline, career pivot)
+   - Backend Engineer → Data Engineer (different domains)
+   - Frontend Engineer → Backend Engineer (different tech stack)
+   - QA Engineer → DevOps Engineer (different focus areas)
+   
+   MINIMAL TRANSFERABILITY (10-30% credit):
+   - Frontend Engineer → Infrastructure Engineer (minimal overlap)
+   - Mobile Engineer → Backend Engineer (different platforms)
+   - Any discipline → completely unrelated discipline
+   
+   Scoring Formula:
+   1. Determine discipline match level (high/medium/low/minimal)
+   2. Check if years requirement is met
+   3. Final score = (discipline_match_%) × (years_adequacy_%)
+   
+   Examples:
+   - 8 years SRE, job needs 5 years DevOps = 95% (high transfer + exceeds years)
+   - 8 years SWE, job needs 5 years DevOps = 35% (low transfer despite years)
+   - 3 years DevOps, job needs 5 years DevOps = 60% (exact match but insufficient years)
+   - 10 years SWE with some DevOps projects, job needs 5 years DevOps = 45% (partial experience)
+   
+   Leadership: If job requires people management, verify CV shows explicit team lead/manager role
    
    **Qualifications Score:**
    - Does CV meet education/certification requirements?
@@ -244,9 +288,36 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    - For jobs requiring specific degrees (CS, Engineering): in-progress degree in correct field scores higher than completed degree in unrelated field
    
    **Overall Score:**
-   - Holistic assessment of match quality
-   - Suggested weighting: 60% skills + 30% experience + 10% qualifications
-   - BUT use judgment: if candidate is missing critical must-have, reduce overall score more aggressively
+   - Calculate using multi-step process with must-have penalty
+   
+   Step 1: Calculate Base Score
+   - Base = (skills_score × 0.6) + (experience_score × 0.3) + (qualifications_score × 0.1)
+   
+   Step 2: Count Missing Must-Haves
+   - Count how many must-have requirements have status "NOT_MATCHED"
+   - missing_count = number of NOT_MATCHED must-haves
+   
+   Step 3: Apply Must-Have Penalty
+   - 0 missing: No penalty (final = base)
+   - 1-2 missing: Moderate penalty (-10 to -20 points from base)
+   - 3-4 missing: Significant penalty (-20 to -30 points from base)
+   - 5+ missing: Severe penalty (-30 to -40 points from base, candidate rarely suitable)
+   
+   Step 4: Apply Discipline Mismatch Cap (if applicable)
+   - If candidate's primary discipline differs from job's required discipline:
+     * Cap overall score at maximum 60%, regardless of base score
+     * Example: Software Engineer applying to DevOps role → max 60%
+     * Example: Backend Engineer applying to Data Scientist role → max 60%
+   - This cap applies AFTER penalty from Step 3
+   
+   Final Score Interpretation:
+   - 90-100%: Excellent fit, meets all/nearly all requirements
+   - 75-89%: Good fit, minor gaps only
+   - 60-74%: Acceptable fit, some gaps or discipline mismatch
+   - 45-59%: Weak fit, major gaps or significant discipline mismatch
+   - 0-44%: Poor fit, should not proceed to interview
+   
+   CRITICAL: Be consistent - if you identify 5+ missing must-haves, overall score should reflect this severity (typically 45-55% range)
 
 4. GENERATE INSIGHTS
    
