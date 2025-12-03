@@ -179,8 +179,8 @@ async def analyze_match(
     matcher_version = "v3.0"
     try:
         if settings.USE_MATCHER_V5 and cv_matcher_v5:
-            print(f"🚀 Using Matcher v5.0 (Fully AI-Driven with GPT-4)")
-            matcher_version = "v5.0"
+            print(f"🚀 Using Matcher v5.1 (Enhanced Discipline Matching)")
+            matcher_version = "v5.1"
             # Build CV text from sections
             cv_text = f"""
 SUMMARY:
