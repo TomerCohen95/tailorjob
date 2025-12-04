@@ -44,11 +44,10 @@ app = FastAPI(
 )
 
 # Add CORS middleware - this must be added LAST so it runs FIRST
-# TEMPORARY: Allow all origins for debugging CORS issue
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,  # Must be False when allow_origins=["*"]
+    allow_origin_regex=r"(http://(localhost|127\.0\.0\.1)(:\d+)?|https://tailorjob\.vercel\.app)",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],

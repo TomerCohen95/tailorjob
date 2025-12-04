@@ -70,7 +70,7 @@ class SubscriptionService:
         # Get subscription from database
         result = supabase.table('subscriptions').select('*').eq('user_id', user_id).maybe_single().execute()
         
-        if not result.data:
+        if not result or not result.data:
             # No subscription = free tier
             return {
                 "tier": "free",
