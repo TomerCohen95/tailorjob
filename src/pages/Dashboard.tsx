@@ -387,38 +387,28 @@ export default function Dashboard() {
               {primaryCV ? (
                 <>
                   {(primaryCV.status === 'parsing' || primaryCV.status === 'uploaded') ? (
-                    // Enhanced parsing state
+                    // Simple parsing state without misleading progress
                     <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-2">
-                          <Loader2 className="h-5 w-5 animate-spin text-yellow-600 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-foreground truncate">{primaryCV.original_filename}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {(primaryCV.file_size / 1024).toFixed(0)} KB • {parsingCVs.get(primaryCV.id)?.stage || 'Parsing in progress...'}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
-                            onClick={() => setCvToCancel(primaryCV)}
-                            title="Cancel processing"
-                          >
-                            <XCircle className="h-5 w-5" />
-                          </Button>
+                      <div className="flex items-start gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin text-yellow-600 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-foreground truncate">{primaryCV.original_filename}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {(primaryCV.file_size / 1024).toFixed(0)} KB • Parsing your CV...
+                          </p>
+                          <p className="text-xs text-yellow-700 mt-1">
+                            This usually takes 15-30 seconds
+                          </p>
                         </div>
-                        {parsingCVs.get(primaryCV.id) && (
-                          <div className="space-y-2">
-                            <Progress value={parsingCVs.get(primaryCV.id)!.progress} className="h-2" />
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">
-                                {parsingCVs.get(primaryCV.id)!.progress === 100 ? 'Parsing complete!' : parsingCVs.get(primaryCV.id)!.stage}
-                              </span>
-                              <span className="font-medium text-yellow-700">{parsingCVs.get(primaryCV.id)!.progress}%</span>
-                            </div>
-                          </div>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                          onClick={() => setCvToCancel(primaryCV)}
+                          title="Cancel processing"
+                        >
+                          <XCircle className="h-5 w-5" />
+                        </Button>
                       </div>
                     </div>
                   ) : (

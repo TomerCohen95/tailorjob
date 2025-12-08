@@ -46,9 +46,9 @@ class CVMatcherV5:
         self.gpt4_client = gpt4_client
         self.gpt4_deployment = gpt4_deployment
         
-        print(f"🔧 Initializing CV Matcher v5.1 (Enhanced Discipline Matching)")
+        print(f"🔧 Initializing CV Matcher v5.2 (Improved Discipline Caps)")
         print(f"   GPT-4 Deployment: {gpt4_deployment}")
-        print(f"✅ CV Matcher v5.1 initialized successfully")
+        print(f"✅ CV Matcher v5.2 initialized successfully")
     
     async def analyze_match(
         self,
@@ -66,7 +66,7 @@ class CVMatcherV5:
             Complete analysis with scores, matches, gaps, explanations
         """
         print("\n" + "="*60)
-        print(f"🎯 [v5.1] Analyzing CV match for job: {job_data.get('title', 'Unknown')}")
+        print(f"🎯 [v5.2] Analyzing CV match for job: {job_data.get('title', 'Unknown')}")
         print("="*60)
         
         try:
@@ -79,17 +79,17 @@ class CVMatcherV5:
             
             # Add metadata
             analysis["analyzed_at"] = datetime.utcnow().isoformat()
-            analysis["matcher_version"] = "5.0"
+            analysis["matcher_version"] = "5.2"
             analysis["scoring_method"] = "GPT-4 holistic reasoning (no computation)"
             
             print("\n" + "="*60)
-            print(f"✅ [v5.1] Match analysis complete: {analysis['overall_score']}% match")
+            print(f"✅ [v5.2] Match analysis complete: {analysis['overall_score']}% match")
             print("="*60 + "\n")
             
             return analysis
             
         except Exception as e:
-            print(f"❌ [v5.1] Match analysis failed: {str(e)}")
+            print(f"❌ [v5.2] Match analysis failed: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
@@ -304,11 +304,13 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    - 5+ missing: Severe penalty (-30 to -40 points from base, candidate rarely suitable)
    
    Step 4: Apply Discipline Mismatch Cap (if applicable)
-   - If candidate's primary discipline differs from job's required discipline:
-     * Cap overall score at maximum 60%, regardless of base score
-     * Example: Software Engineer applying to DevOps role → max 60%
-     * Example: Backend Engineer applying to Data Scientist role → max 60%
+   - Evaluate the degree of discipline mismatch between CV and job:
+     * Minor mismatch (adjacent roles, high skill overlap) → cap at 55-65%
+     * Moderate mismatch (different specialties, some transferable skills) → cap at 40-55%
+     * Major mismatch (unrelated disciplines, minimal skill overlap) → cap at 25-40%
+   - Consider: role type, tech stack overlap, domain similarity, transferability
    - This cap applies AFTER penalty from Step 3
+   - Be stricter when CV shows zero experience in the target discipline's core areas
    
    Final Score Interpretation:
    - 90-100%: Excellent fit, meets all/nearly all requirements
@@ -330,6 +332,8 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    - What's missing from CV? (both must-have AND nice-to-have)
    - Be factual and direct
    - Include technical skills AND qualifications (like degree)
+   - If significant discipline/role mismatch exists, state it explicitly as a gap
+   - Group missing items by category when helpful (languages, tools, domains, experience areas)
    
    **Recommendations (3-5 actionable steps):**
    - ONLY recommend practical, achievable actions based on candidate's career stage and current gaps
@@ -349,6 +353,8 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    - For experience gaps: "Seek roles emphasizing [skill]" or "Highlight transferable [related skill]"
    - For in-progress education: "Complete degree to strengthen qualifications"
    - For no-degree gap with 5+ years experience: "Note: job may accept experience in lieu of degree—discuss with recruiter"
+   - For major discipline mismatches (>40% skill gap): State clearly this is a career pivot requiring 1-3 years in target discipline first
+   - Avoid suggesting quick fixes (2-3 month courses) for fundamental discipline changes
    
    EXAMPLES:
    - Missing Spark → "Learn Apache Spark via Databricks Community Edition (2-3 weeks)"

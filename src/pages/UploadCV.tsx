@@ -1,13 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation } from '@/components/layout/Navigation';
 import { FileUpload } from '@/components/ui/file-upload';
-import { ArrowRight, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ArrowRight, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cvAPI } from '@/lib/api';
-import { useCVParsing } from '@/contexts/CVParsingContext';
+import { cvAPI, apiClient } from '@/lib/api';
 import { UpgradeDialog } from '@/components/dialogs/UpgradeDialog';
 import {
   AlertDialog,
@@ -22,9 +21,9 @@ import {
 
 export default function UploadCV() {
   const navigate = useNavigate();
-  const { startParsing } = useCVParsing();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadedCvId, setUploadedCvId] = useState<string | null>(null);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateCvId, setDuplicateCvId] = useState<string | null>(null);
   const [duplicateCvInfo, setDuplicateCvInfo] = useState<any>(null);
@@ -32,6 +31,57 @@ export default function UploadCV() {
   const [isCanceling, setIsCanceling] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgradeInfo, setUpgradeInfo] = useState<any>(null);
+
+  // Poll for CV parsing completion with timeout
+  useEffect(() => {
+    if (!uploadedCvId || !isUploading) return;
+
+    let attempts = 0;
+    const maxAttempts = 60; // 60 seconds max
+    
+    const pollInterval = setInterval(async () => {
+      attempts++;
+      
+      try {
+        const data = await apiClient.getCV(uploadedCvId);
+        const cv = data.cv;
+        
+        console.log(`Polling attempt ${attempts}:`, cv?.status);
+        
+        if (cv?.status === 'parsed') {
+          clearInterval(pollInterval);
+          setIsUploading(false);
+          toast.success('CV uploaded successfully!', {
+            description: 'Redirecting to preview your CV...'
+          });
+          // Redirect to CV preview page to review the parsed CV
+          navigate('/cv-preview');
+        } else if (cv?.status === 'error') {
+          clearInterval(pollInterval);
+          setIsUploading(false);
+          toast.error('Parsing failed', {
+            description: cv.error_message || 'Please try again'
+          });
+          setUploadedCvId(null);
+        } else if (attempts >= maxAttempts) {
+          // Timeout - stop polling but don't fail
+          clearInterval(pollInterval);
+          setIsUploading(false);
+          toast.info('CV is still processing', {
+            description: 'Check back in a moment or refresh the page'
+          });
+          // Still redirect to dashboard so user isn't stuck
+          navigate('/dashboard');
+        }
+      } catch (error) {
+        console.error('Error checking CV status:', error);
+        // Don't fail on network errors, keep trying
+      }
+    }, 1000); // Check every second
+
+    // Cleanup on unmount
+    return () => clearInterval(pollInterval);
+  }, [uploadedCvId, isUploading, navigate]);
 
   const handleFileSelect = (selectedFile: File) => {
     setFile(selectedFile);
@@ -54,19 +104,22 @@ export default function UploadCV() {
         return;
       }
       
-      // Store CV ID for cancellation
-      if (result.cv_id) {
-        setCvToCancel(result.cv_id);
-        // Start tracking parsing in context
-        startParsing(result.cv_id, file.name);
+      // Check if CV is already parsed (synchronous parsing)
+      if (result.status === 'parsed') {
+        setIsUploading(false);
+        toast.success('CV uploaded successfully!', {
+          description: 'Redirecting to dashboard...'
+        });
+        // Redirect immediately to dashboard
+        navigate('/dashboard');
+        return;
       }
       
-      toast.success('CV uploaded successfully!', {
-        description: 'Your CV is being parsed...'
-      });
-      
-      // Redirect to dashboard after successful upload
-      navigate('/dashboard');
+      // Start polling for completion (fallback for async parsing)
+      if (result.cv_id) {
+        setUploadedCvId(result.cv_id);
+        setCvToCancel(result.cv_id);
+      }
     } catch (error: any) {
       // Check if it's a limit error with upgrade info
       if (error.upgrade_info) {
@@ -91,6 +144,7 @@ export default function UploadCV() {
       await cvAPI.delete(cvToCancel);
       toast.success('Upload cancelled');
       setCvToCancel(null);
+      setUploadedCvId(null);
       setFile(null);
     } catch (error) {
       console.error('Failed to cancel upload:', error);
@@ -108,18 +162,12 @@ export default function UploadCV() {
 
     try {
       await cvAPI.reparse(duplicateCvId);
-      
-      toast.success('Re-parsing initiated!', {
-        description: 'Your CV is being parsed with the updated AI...'
-      });
-      
-      navigate('/dashboard');
+      setUploadedCvId(duplicateCvId);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to re-parse CV';
       toast.error('Re-parse failed', {
         description: message
       });
-    } finally {
       setIsUploading(false);
     }
   };
@@ -225,11 +273,20 @@ export default function UploadCV() {
                 ) : (
                   <Button
                     onClick={handleUpload}
-                    disabled={!file}
+                    disabled={!file || isUploading}
                     className="flex-1 bg-gradient-to-r from-primary to-accent hover:opacity-90"
                   >
-                    Upload & Parse
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading & Parsing...
+                      </>
+                    ) : (
+                      <>
+                        Upload & Parse
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
                   </Button>
                 )}
               </div>

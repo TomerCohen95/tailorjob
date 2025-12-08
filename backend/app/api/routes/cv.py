@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from app.api.deps import get_current_user
 from app.services.storage import storage_service
 from app.services.queue import queue_service
+from app.services.cv_parser import cv_parser_service
 from app.utils.supabase_client import supabase
 from app.utils.usage_limiter import require_feature_dependency
 import hashlib
+import json
 from functools import partial
 
 router = APIRouter()
@@ -115,23 +117,55 @@ async def upload_cv(
     
     cv_id = result.data[0]["id"]
     
-    # Enqueue parsing job with error handling
-    print(f"🔄 Enqueueing CV parse job for CV: {cv_id}, user: {user.id}")
+    # Parse CV immediately (synchronous) for better UX
+    print(f"📄 Parsing CV immediately: {cv_id}")
     try:
-        job_id = await queue_service.enqueue_cv_parse(cv_id, user.id)
-        print(f"✅ Job enqueued with ID: {job_id}")
-        message = "CV uploaded successfully, parsing started"
+        # Update status to parsing
+        supabase.table("cvs").update({
+            "status": "parsing"
+        }).eq("id", cv_id).execute()
+        
+        # Parse the CV
+        parsed_data = await cv_parser_service.parse_cv_file(content, file.filename)
+        
+        # Save parsed sections to database
+        sections_data = {
+            "cv_id": cv_id,
+            "summary": parsed_data.get("summary", ""),
+            "skills": json.dumps(parsed_data.get("skills", [])),
+            "experience": json.dumps(parsed_data.get("experience", [])),
+            "education": json.dumps(parsed_data.get("education", [])),
+            "certifications": json.dumps(parsed_data.get("certifications", []))
+        }
+        
+        supabase.table("cv_sections").insert(sections_data).execute()
+        print(f"📝 Created CV sections")
+        
+        # Update CV status to parsed
+        supabase.table("cvs").update({
+            "status": "parsed"
+        }).eq("id", cv_id).execute()
+        
+        print(f"✅ CV {cv_id} parsed successfully")
+        
+        return {
+            "cv_id": cv_id,
+            "status": "parsed",
+            "message": "CV uploaded and parsed successfully"
+        }
+        
     except Exception as e:
-        print(f"⚠️  Queue error (non-fatal): {str(e)}")
-        job_id = None
-        message = "CV uploaded successfully. Parsing will start when worker reconnects."
-    
-    return {
-        "cv_id": cv_id,
-        "job_id": job_id,
-        "status": "uploaded",
-        "message": message
-    }
+        print(f"❌ Error parsing CV {cv_id}: {str(e)}")
+        # Update CV status to error
+        supabase.table("cvs").update({
+            "status": "error",
+            "error_message": str(e)
+        }).eq("id", cv_id).execute()
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to parse CV: {str(e)}"
+        )
 
 @router.get("/status/{job_id}")
 async def get_parse_status(

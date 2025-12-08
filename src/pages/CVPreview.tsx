@@ -5,7 +5,7 @@ import { Navigation } from '@/components/layout/Navigation';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Briefcase, GraduationCap, Award, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api';
+import { apiClient, cvAPI } from '@/lib/api';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -28,6 +28,8 @@ export default function CVPreview() {
 
   useEffect(() => {
     const fetchCVData = async () => {
+      let targetCvId = cvId;
+      
       if (!cvId) {
         // If no cvId, fetch the primary CV (or most recent if no primary)
         try {
@@ -35,6 +37,7 @@ export default function CVPreview() {
           if (cvs.length > 0) {
             // Find primary CV or fall back to most recent
             const primaryCV = cvs.find(cv => cv.is_primary) || cvs[0];
+            targetCvId = primaryCV.id;
             const data = await apiClient.getCV(primaryCV.id);
             setCvStatus(data.cv?.status || 'unknown');
 
@@ -55,28 +58,43 @@ export default function CVPreview() {
         } finally {
           setLoading(false);
         }
-        return;
-      }
+      } else {
+        try {
+          const data = await apiClient.getCV(cvId);
+          setCvStatus(data.cv?.status || 'unknown');
 
-      try {
-        const data = await apiClient.getCV(cvId);
-        setCvStatus(data.cv?.status || 'unknown');
-
-        if (data.sections) {
-          // Parse JSON strings from database
-          setSections({
-            summary: data.sections.summary || 'No summary available',
-            skills: JSON.parse(data.sections.skills || '[]'),
-            experience: JSON.parse(data.sections.experience || '[]'),
-            education: JSON.parse(data.sections.education || '[]'),
-            certifications: JSON.parse(data.sections.certifications || '[]')
-          });
+          if (data.sections) {
+            // Parse JSON strings from database
+            setSections({
+              summary: data.sections.summary || 'No summary available',
+              skills: JSON.parse(data.sections.skills || '[]'),
+              experience: JSON.parse(data.sections.experience || '[]'),
+              education: JSON.parse(data.sections.education || '[]'),
+              certifications: JSON.parse(data.sections.certifications || '[]')
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching CV:', error);
+          toast.error('Failed to load CV data');
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error('Error fetching CV:', error);
-        toast.error('Failed to load CV data');
-      } finally {
-        setLoading(false);
+      }
+      
+      // Auto-dismiss any notifications for this CV
+      if (targetCvId) {
+        try {
+          const notifications = await cvAPI.getNotifications();
+          const cvNotifications = notifications.filter(n => n.cv_id === targetCvId);
+          
+          // Delete all notifications for this CV silently
+          for (const notification of cvNotifications) {
+            await cvAPI.deleteNotification(notification.id);
+          }
+        } catch (error) {
+          console.error('Error dismissing notifications:', error);
+          // Fail silently - not critical
+        }
       }
     };
 
