@@ -114,16 +114,21 @@ class CVMatcherV5:
         
         analysis = json.loads(response.choices[0].message.content)
         
-        # Validate required fields
+        # Validate required fields with fallbacks for optional arrays
         required = [
             "overall_score", "skills_score", "experience_score", "qualifications_score",
             "matched_must_have", "missing_must_have",
-            "matched_nice_to_have", "missing_nice_to_have",
             "strengths", "gaps", "recommendations"
         ]
         for field in required:
             if field not in analysis:
                 raise ValueError(f"GPT-4 response missing required field: {field}")
+        
+        # Add fallbacks for nice-to-have fields (may be empty if job has no nice-to-haves)
+        if "matched_nice_to_have" not in analysis:
+            analysis["matched_nice_to_have"] = []
+        if "missing_nice_to_have" not in analysis:
+            analysis["missing_nice_to_have"] = []
         
         print(f"✅ GPT-4 analysis complete:")
         print(f"   Overall: {analysis['overall_score']}%")
