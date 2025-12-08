@@ -1,16 +1,18 @@
 """
-CV Matcher v5.1 - Fully AI-driven matching with GPT-4.
-Enhanced with discipline matching and must-have penalty logic.
+CV Matcher v5.3 - Fully AI-driven matching with GPT-4.
+Enhanced with discipline matching, score formula fixes, and CV presentation focus.
 
 Architecture:
 1. Extract CV facts (GPT-4o-mini, temp=0.0)
 2. Analyze match (GPT-4, temp=0.2) - does EVERYTHING
 
-v5.1 Changes:
-- Added discipline/role type matching guidelines
-- Strengthened must-have penalty logic
-- Added discipline mismatch cap (max 60% for career pivots)
-- Clarified transferability levels (SRE ↔ DevOps = high, SWE → DevOps = low)
+v5.3 Changes:
+- Fixed overall score calculation (0 missing must-haves = base score, no phantom penalties)
+- Reduced penalty severity (0: none, 1-2: -5 to -10, 3-4: -15 to -20, 5+: -25 to -35)
+- Completely rewrote recommendations to focus on CV presentation improvements
+- Recommendations now prioritize highlighting existing experience over learning new skills
+- Added explicit instructions to never suggest adding non-existent skills to CV
+- Enhanced quantifiable metrics examples (team size, performance improvements, scale metrics)
 """
 
 from typing import Dict, Any
@@ -26,7 +28,12 @@ class CVMatcherV5:
     - Requirement matching (semantic + transferable)
     - Scoring (skills, experience, qualifications, overall)
     - Explanation (strengths, gaps, recommendations)
+    
+    Version: v5.3 - CV Presentation Focus + Score Formula Fix
     """
+    
+    VERSION = "v5.3"
+    VERSION_NAME = "CV Presentation Focus + Score Formula Fix"
     
     def __init__(
         self,
@@ -46,9 +53,9 @@ class CVMatcherV5:
         self.gpt4_client = gpt4_client
         self.gpt4_deployment = gpt4_deployment
         
-        print(f"🔧 Initializing CV Matcher v5.2 (Improved Discipline Caps)")
+        print(f"🔧 Initializing CV Matcher v{self.VERSION} ({self.VERSION_NAME})")
         print(f"   GPT-4 Deployment: {gpt4_deployment}")
-        print(f"✅ CV Matcher v5.2 initialized successfully")
+        print(f"✅ CV Matcher v{self.VERSION} initialized successfully")
     
     async def analyze_match(
         self,
@@ -66,7 +73,7 @@ class CVMatcherV5:
             Complete analysis with scores, matches, gaps, explanations
         """
         print("\n" + "="*60)
-        print(f"🎯 [v5.2] Analyzing CV match for job: {job_data.get('title', 'Unknown')}")
+        print(f"🎯 [v{self.VERSION}] Analyzing CV match for job: {job_data.get('title', 'Unknown')}")
         print("="*60)
         
         try:
@@ -79,17 +86,17 @@ class CVMatcherV5:
             
             # Add metadata
             analysis["analyzed_at"] = datetime.utcnow().isoformat()
-            analysis["matcher_version"] = "5.2"
+            analysis["matcher_version"] = self.VERSION
             analysis["scoring_method"] = "GPT-4 holistic reasoning (no computation)"
             
             print("\n" + "="*60)
-            print(f"✅ [v5.2] Match analysis complete: {analysis['overall_score']}% match")
+            print(f"✅ [v{self.VERSION}] Match analysis complete: {analysis['overall_score']}% match")
             print("="*60 + "\n")
             
             return analysis
             
         except Exception as e:
-            print(f"❌ [v5.2] Match analysis failed: {str(e)}")
+            print(f"❌ [v{self.VERSION}] Match analysis failed: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
@@ -297,16 +304,17 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    
    Step 1: Calculate Base Score
    - Base = (skills_score × 0.6) + (experience_score × 0.3) + (qualifications_score × 0.1)
+   - ALWAYS show this calculation explicitly in reasoning section
    
    Step 2: Count Missing Must-Haves
    - Count how many must-have requirements have status "NOT_MATCHED"
    - missing_count = number of NOT_MATCHED must-haves
    
    Step 3: Apply Must-Have Penalty
-   - 0 missing: No penalty (final = base)
-   - 1-2 missing: Moderate penalty (-10 to -20 points from base)
-   - 3-4 missing: Significant penalty (-20 to -30 points from base)
-   - 5+ missing: Severe penalty (-30 to -40 points from base, candidate rarely suitable)
+   - 0 missing: No penalty (final = base) ← CRITICAL: overall score MUST equal base score
+   - 1-2 missing: Moderate penalty (-5 to -10 points from base)
+   - 3-4 missing: Significant penalty (-15 to -20 points from base)
+   - 5+ missing: Severe penalty (-25 to -35 points from base, candidate rarely suitable)
    
    Step 4: Apply Discipline Mismatch Cap (if applicable)
    - Evaluate the degree of discipline mismatch between CV and job:
@@ -341,32 +349,60 @@ Perform a holistic analysis of how well this CV matches the job requirements.
    - Group missing items by category when helpful (languages, tools, domains, experience areas)
    
    **Recommendations (3-5 actionable steps):**
-   - ONLY recommend practical, achievable actions based on candidate's career stage and current gaps
+   - Focus on CV PRESENTATION improvements that can be done immediately (same day)
+   - Recommendations should help highlight existing experience that matches job requirements
+   - Be specific and reference actual CV content when applicable
+   
+   PRIORITIZE CV PRESENTATION IMPROVEMENTS:
+   1. "Highlight [existing but understated skill/experience] more prominently in CV summary"
+   2. "Add quantifiable metrics to [existing role] - e.g.:"
+      - "Led team of X engineers"
+      - "Improved [metric] by X%"
+      - "Reduced latency from X to Y"
+      - "Scaled system from X to Y users/customers"
+      - "Processed X events per second"
+      - "Managed budget of $X"
+   3. "Expand [brief experience mention] with specific technologies/projects used"
+   4. "Emphasize [transferable experience] as it relates to [job requirement]"
+   5. "Add [existing but unlisted skill] to skills section if you have experience with it"
+   
+   APPLICATION STRATEGY IMPROVEMENTS:
+   1. "In cover letter, emphasize [matching strength] which directly addresses [requirement]"
+   2. "Highlight [similar technology/experience] as equivalent to [required technology]"
+   3. "Reach out to hiring manager mentioning [specific matching experience]"
+   
+   ONLY IF MAJOR GAPS EXIST:
+   - For discipline mismatch: "This role requires X discipline. Consider targeting [more aligned role type] positions"
+   - For degree gap with experience: "Note: some companies accept experience in lieu of degree—discuss with recruiter"
+   - For in-progress education: "Complete degree to strengthen qualifications for future applications"
    
    NEVER RECOMMEND:
-   - Pursuing Bachelor's/Master's degrees for candidates with 3+ years experience (too late in career)
-   - Certifications UNLESS job posting EXPLICITLY requires them (e.g., "AWS Certified required")
-   - If CV shows experience with a technology, DO NOT suggest getting certified in it
-   - Anything that takes >6 months for full-time workers
-   - Actions that address non-gaps (don't suggest certifications for skills they already have)
+   - "Learn [technology]" - not actionable for immediate CV submission
+   - Building projects or GitHub repos - takes too long for bulk applications
+   - Getting certifications (unless job explicitly requires them)
+   - Pursuing degrees for candidates with 3+ years experience
+   - Adding skills to CV that candidate doesn't actually have
    
-   DO RECOMMEND:
-   - Learning specific missing MUST-HAVE technical skills via:
-     * Online courses (Udemy, Coursera) - 2-4 weeks
-     * Building portfolio projects - 1-2 months
-     * Contributing to open source - ongoing
-   - For experience gaps: "Seek roles emphasizing [skill]" or "Highlight transferable [related skill]"
-   - For in-progress education: "Complete degree to strengthen qualifications"
-   - For no-degree gap with 5+ years experience: "Note: job may accept experience in lieu of degree—discuss with recruiter"
-   - For major discipline mismatches (>40% skill gap): State clearly this is a career pivot requiring 1-3 years in target discipline first
-   - Avoid suggesting quick fixes (2-3 month courses) for fundamental discipline changes
+   EXAMPLES OF GOOD RECOMMENDATIONS:
+   ✅ "Highlight Python projects in your experience section if you have them - job requires 2+ years Python"
+   ✅ "Add team size metrics to your Team Lead role (e.g., 'Led team of 6-8 engineers') to strengthen leadership evidence"
+   ✅ "Add quantifiable impact to Windows Internals work (e.g., 'Improved event processing by 40%' or 'Reduced crash rate by 25%')"
+   ✅ "Expand C++ experience section with specific frameworks/libraries used (job mentions modern C++)"
+   ✅ "Emphasize C# backend work as it demonstrates backend expertise similar to required Java experience"
+   ✅ "Add scale metrics to infrastructure work (e.g., 'Scaled from 100K to 2M daily users')"
    
-   EXAMPLES:
-   - Missing Spark → "Learn Apache Spark via Databricks Community Edition (2-3 weeks)"
-   - Missing React → "Build a React portfolio project showcasing frontend skills (1-2 months)"
-   - Has Azure experience, job wants Azure → DO NOT suggest Azure certification
-   - In-progress CS degree → "Complete Bachelor's degree to meet formal education requirement"
-   - 10 years exp, no degree → "Job requires degree. With your experience, discuss waiver with recruiter."
+   EXAMPLES OF BAD RECOMMENDATIONS:
+   ❌ "Learn AWS through online courses" - not CV-worthy quickly
+   ❌ "Get AWS certification" - takes months, not applicable
+   ❌ "Build a portfolio project in React" - too time-consuming
+   ❌ "Add Python to your skills section" - don't lie if you don't have experience
+   
+   LEGACY EXAMPLES (DO NOT USE - kept for reference only):
+   - Missing Spark → "Learn Apache Spark via Databricks Community Edition (2-3 weeks)" ❌ BAD
+   - Missing React → "Build a React portfolio project showcasing frontend skills (1-2 months)" ❌ BAD
+   - Has Azure experience, job wants Azure → DO NOT suggest Azure certification ✅ CORRECT
+   - In-progress CS degree → "Complete Bachelor's degree to meet formal education requirement" ✅ CORRECT
+   - 10 years exp, no degree → "Job requires degree. With your experience, discuss waiver with recruiter." ✅ CORRECT
 
 ---
 
