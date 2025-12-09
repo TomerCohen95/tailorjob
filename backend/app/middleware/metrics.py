@@ -114,6 +114,7 @@ def setup_metrics(app):
     """
     from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
     from fastapi import Response
+    from prometheus_fastapi_instrumentator import metrics
     
     # Auto-instrument FastAPI
     instrumentator = Instrumentator(
@@ -124,6 +125,17 @@ def setup_metrics(app):
         excluded_handlers=["/metrics", "/health", "/docs", "/redoc", "/openapi.json"],
         inprogress_name="fastapi_inprogress_requests",
         inprogress_labels=True,
+    )
+    
+    # Add HTTP request metrics
+    instrumentator.add(
+        metrics.requests()  # Adds http_requests_total
+    ).add(
+        metrics.latency()   # Adds http_request_duration_seconds
+    ).add(
+        metrics.request_size()  # Adds http_request_size_bytes
+    ).add(
+        metrics.response_size()  # Adds http_response_size_bytes
     )
     
     instrumentator.instrument(app)

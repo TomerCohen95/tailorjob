@@ -1,0 +1,325 @@
+{
+  "dashboard": {
+    "title": "TailorJob Production Monitoring",
+    "tags": ["tailorjob", "production"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Health",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "up{job=\"tailorjob-api\"}",
+            "legendFormat": "API Status",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "background"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "value": "0", "text": "DOWN", "color": "red"},
+              {"type": "value", "value": "1", "text": "UP", "color": "green"}
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Process Memory (MB)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes{job=\"tailorjob-api\"} / 1024 / 1024",
+            "legendFormat": "Memory",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "decmbytes",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "CPU Usage",
+        "type": "graph",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total{job=\"tailorjob-api\"}[5m])",
+            "legendFormat": "CPU",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percentunit", "label": "CPU %", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Open File Descriptors",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "process_open_fds{job=\"tailorjob-api\"}",
+            "legendFormat": "Open FDs",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 5,
+        "title": "CV Parse Duration (p95)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(cv_parse_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(cv_parse_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "CV Parse Errors",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [
+          {
+            "expr": "rate(cv_parse_errors_total[5m])",
+            "legendFormat": "{{error_type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "errors/sec", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 7,
+        "title": "AI Match Duration (p95)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(ai_match_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(ai_match_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "AI Token Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "rate(ai_match_tokens_total[5m])",
+            "legendFormat": "{{model}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "tokens/sec", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Queue Length",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "queue_length",
+            "legendFormat": "Queue Size",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "Jobs", "show": true, "decimals": 0},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Queue Processing Duration",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(queue_processing_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 {{job_type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 11,
+        "title": "PayPal API Calls",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+        "targets": [
+          {
+            "expr": "rate(paypal_api_calls_total[5m])",
+            "legendFormat": "{{operation}} - {{status}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "calls/sec", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 12,
+        "title": "PayPal Webhooks",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+        "targets": [
+          {
+            "expr": "rate(paypal_webhooks_total[5m])",
+            "legendFormat": "{{event_type}} - {{processed}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "webhooks/sec", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 13,
+        "title": "User Activity",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 36},
+        "targets": [
+          {
+            "expr": "rate(user_signups_total[5m])",
+            "legendFormat": "Signups - {{method}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(user_logins_total[5m])",
+            "legendFormat": "Logins - {{method}}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"label": "events/sec", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Feature Usage",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 36},
+        "targets": [
+          {
+            "expr": "rate(feature_usage_total[5m])",
+            "legendFormat": "{{feature}} - {{tier}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "usage/sec", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Database Query Duration (p95)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 44},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 {{operation}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration", "show": true},
+          {"show": false}
+        ]
+      },
+      {
+        "id": 16,
+        "title": "Redis Connection Errors",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 44},
+        "targets": [
+          {
+            "expr": "rate(redis_connection_errors_total[5m])",
+            "legendFormat": "Errors",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"label": "errors/sec", "show": true},
+          {"show": false}
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}
