@@ -1,0 +1,40 @@
+# Prometheus configuration for TailorJob
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'tailorjob-production'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Scrape TailorJob API
+  - job_name: 'tailorjob-api'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['tailorjob-api.azurewebsites.net:443']
+    scheme: https
+    tls_config:
+      insecure_skip_verify: false
+
+  # Scrape Node Exporter (if you add it later for system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']

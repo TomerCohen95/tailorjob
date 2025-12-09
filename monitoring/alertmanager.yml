@@ -1,0 +1,96 @@
+# Alertmanager configuration for TailorJob
+# Sends all alerts to Discord webhook
+
+global:
+  resolve_timeout: 5m
+
+# Discord webhook template
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route configuration
+route:
+  # Group alerts by alertname and severity
+  group_by: ['alertname', 'severity']
+  
+  # Wait 30s before sending first notification (to group similar alerts)
+  group_wait: 30s
+  
+  # Wait 5m before sending notification about new alerts in existing group
+  group_interval: 5m
+  
+  # Wait 4h before re-sending resolved alert
+  repeat_interval: 4h
+  
+  # Default receiver for all alerts
+  receiver: 'discord-default'
+  
+  # Child routes for different severity levels
+  routes:
+    # Critical alerts - send immediately
+    - match:
+        severity: critical
+      receiver: 'discord-critical'
+      group_wait: 10s
+      repeat_interval: 30m
+    
+    # Warning alerts - can wait a bit
+    - match:
+        severity: warning
+      receiver: 'discord-warning'
+      group_wait: 1m
+      repeat_interval: 2h
+    
+    # Info alerts - daily digest only
+    - match:
+        severity: info
+      receiver: 'discord-info'
+      group_wait: 5m
+      repeat_interval: 24h
+
+# Inhibition rules (suppress alerts when other alerts are firing)
+inhibit_rules:
+  # If site is down, don't alert on high latency or errors
+  - source_match:
+      alertname: 'SiteDown'
+    target_match_re:
+      alertname: 'HighAPILatency|HighErrorRate'
+    equal: ['job']
+
+# Discord webhook receivers
+receivers:
+  # Critical alerts - @everyone mention
+  - name: 'discord-critical'
+    webhook_configs:
+      - url: 'DISCORD_WEBHOOK_URL_PLACEHOLDER'
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+        max_alerts: 10
+
+  # Warning alerts - regular notification
+  - name: 'discord-warning'
+    webhook_configs:
+      - url: 'DISCORD_WEBHOOK_URL_PLACEHOLDER'
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+        max_alerts: 10
+
+  # Info alerts - minimal notification
+  - name: 'discord-info'
+    webhook_configs:
+      - url: 'DISCORD_WEBHOOK_URL_PLACEHOLDER'
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+        max_alerts: 10
+
+  # Default fallback
+  - name: 'discord-default'
+    webhook_configs:
+      - url: 'DISCORD_WEBHOOK_URL_PLACEHOLDER'
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+        max_alerts: 10

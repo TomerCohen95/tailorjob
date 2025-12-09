@@ -1,0 +1,19 @@
+# TailorJob Monitoring URLs
+# Generated: Tue Dec  9 11:27:47 IST 2025
+
+Grafana Dashboard: http://tailorjob-grafana-1765272324.eastus.azurecontainer.io:3000
+Username: admin
+Password: (see .env file)
+
+Prometheus: http://tailorjob-prometheus-1765272255.eastus.azurecontainer.io:9090
+Alertmanager: http://tailorjob-alertmanager-1765272394.eastus.azurecontainer.io:9093
+
+# Azure Container Names
+Resource Group: tailorjob-rg
+Prometheus Container: tailorjob-prometheus
+Grafana Container: tailorjob-grafana
+Alertmanager Container: tailorjob-alertmanager
+
+# Storage
+Storage Account: tailorjobmonitoring
+File Shares: prometheus-data, grafana-data

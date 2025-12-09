@@ -6,6 +6,8 @@ import asyncio
 from app.config import settings
 from app.api.routes import cv, jobs, tailor, matching, payments
 from app.workers.cv_worker import CVWorker
+from app.middleware.metrics import setup_metrics
+from app.services.paypal_monitor import paypal_monitor
 
 # Initialize worker
 cv_worker = CVWorker()
@@ -26,12 +28,15 @@ async def lifespan(app: FastAPI):
     
     # Start background workers
     worker_task = asyncio.create_task(start_background_workers())
+    paypal_monitor_task = asyncio.create_task(paypal_monitor.start())
     
     yield
     
     # Shutdown
     print("👋 Shutting down TailorJob API...")
     worker_task.cancel()
+    paypal_monitor.stop()
+    paypal_monitor_task.cancel()
 
 # Create FastAPI app
 app = FastAPI(
@@ -42,6 +47,9 @@ app = FastAPI(
     redoc_url="/redoc",
     redirect_slashes=False
 )
+
+# Set up Prometheus metrics
+setup_metrics(app)
 
 # Add CORS middleware - this must be added LAST so it runs FIRST
 app.add_middleware(
