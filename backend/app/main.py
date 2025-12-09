@@ -2,11 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
+import os
 
 from app.config import settings
 from app.api.routes import cv, jobs, tailor, matching, payments
 from app.workers.cv_worker import CVWorker
 from app.middleware.metrics import setup_metrics
+from app.middleware.logging_config import setup_logging
 from app.services.paypal_monitor import paypal_monitor
 
 # Initialize worker
@@ -25,6 +27,14 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     print("🚀 Starting TailorJob API...")
+    
+    # Setup logging to Loki if configured
+    loki_url = os.getenv("LOKI_URL")
+    if loki_url:
+        setup_logging(loki_url=loki_url)
+        print(f"✓ Logging configured to Loki at {loki_url}")
+    else:
+        print("⚠️  LOKI_URL not configured, logging to stdout only")
     
     # Start background workers
     worker_task = asyncio.create_task(start_background_workers())
