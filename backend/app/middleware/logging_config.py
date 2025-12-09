@@ -48,14 +48,22 @@ class LokiHandler(logging.Handler):
             }
             
             # Send to Loki
-            self.session.post(
+            response = self.session.post(
                 f"{self.url}/loki/api/v1/push",
                 json=payload,
-                timeout=2
+                timeout=5  # Increased timeout to 5s
             )
+            # Check response status
+            if response.status_code not in (200, 204):
+                print(f"⚠️  Loki returned status {response.status_code}: {response.text}", flush=True)
         except Exception as e:
-            # Don't let logging errors crash the app
-            print(f"Failed to send log to Loki: {e}")
+            # Don't let logging errors crash the app, but make failures visible
+            import sys
+            import traceback
+            print(f"❌ Failed to send log to Loki: {e}", file=sys.stderr, flush=True)
+            print(f"   URL: {self.url}/loki/api/v1/push", file=sys.stderr, flush=True)
+            print(f"   Payload: {payload}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
 
 
 def setup_logging(loki_url: Optional[str] = None):
