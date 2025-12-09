@@ -112,6 +112,9 @@ def setup_metrics(app):
     """
     Set up Prometheus metrics for FastAPI application
     """
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from fastapi import Response
+    
     # Auto-instrument FastAPI
     instrumentator = Instrumentator(
         should_group_status_codes=False,
@@ -124,7 +127,12 @@ def setup_metrics(app):
     )
     
     instrumentator.instrument(app)
-    instrumentator.expose(app, endpoint="/metrics")
+    
+    # Manually add /metrics endpoint since expose() doesn't work reliably
+    @app.get("/metrics")
+    async def metrics():
+        """Prometheus metrics endpoint"""
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
     
     print("✅ Prometheus metrics enabled at /metrics")
     

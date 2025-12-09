@@ -48,9 +48,6 @@ app = FastAPI(
     redirect_slashes=False
 )
 
-# Set up Prometheus metrics
-setup_metrics(app)
-
 # Add CORS middleware - this must be added LAST so it runs FIRST
 app.add_middleware(
     CORSMiddleware,
@@ -86,6 +83,9 @@ app.include_router(jobs.router, prefix="/api/jobs", tags=["Jobs"])
 app.include_router(tailor.router, prefix="/api/tailor", tags=["Tailor"])
 app.include_router(matching.router, prefix="/api", tags=["Matching"])
 app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
+# Set up Prometheus metrics - MUST be after routers are included
+setup_metrics(app)
+
 
 if __name__ == "__main__":
     import uvicorn
