@@ -359,6 +359,60 @@ export const tailorAPI = {
   }> {
     return fetchAPI(`/chat/${cvId}/${jobId}/history`);
   },
+  /**
+   * Parse match analysis recommendations into actionable suggestions
+   * @param matchAnalysis - Full match analysis from cv_matcher
+   * @returns Structured suggestions for interactive UI
+   */
+  async parseRecommendations(matchAnalysis: any): Promise<any> {
+    return fetchAPI('/tailor/parse-recommendations', {
+      method: 'POST',
+      body: JSON.stringify(matchAnalysis),
+    });
+  },
+
+
+  /**
+   * Generate tailored CV PDF directly (non-queued)
+   * @param cvText - Original CV text content
+   * @param analysis - Match analysis from matchingAPI.getScore()
+   * @param templateName - PDF template to use ('cv_template_modern.html' or 'cv_template_classic.html')
+   * @param acceptedSuggestions - List of accepted suggestions to apply to the CV
+   * @returns PDF blob for download
+   */
+  async generatePDF(
+    cvText: string,
+    analysis: any,
+    templateName: 'modern' | 'classic' = 'modern',
+    acceptedSuggestions: any[] = []
+  ): Promise<Blob> {
+    const token = await getAuthToken();
+    
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+
+    const response = await fetch(`${API_BASE_URL}/tailor/generate-pdf`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cv_text: cvText,
+        analysis: analysis,
+        template_name: templateName === 'modern' ? 'cv_template_modern.html' : 'cv_template_classic.html',
+        accepted_suggestions: acceptedSuggestions
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'PDF generation failed' }));
+      throw new Error(error.detail?.error || error.detail || 'PDF generation failed');
+    }
+
+    return response.blob();
+  },
 };
 
 // ============================================================================

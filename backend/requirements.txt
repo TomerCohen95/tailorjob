@@ -22,7 +22,8 @@ beautifulsoup4==4.12.3
 lxml==5.1.0
 
 # PDF generation
-weasyprint==60.2
+jinja2==3.1.4
+reportlab==4.2.5
 
 # Utilities
 httpx>=0.26,<0.29

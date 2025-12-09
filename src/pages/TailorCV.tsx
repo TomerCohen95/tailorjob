@@ -4,15 +4,18 @@ import { Button } from '@/components/ui/button';
 import { Navigation } from '@/components/layout/Navigation';
 import { JobDescriptionPanel } from '@/components/cv/JobDescriptionPanel';
 import { CVEditor } from '@/components/cv/CVEditor';
+import { CVPreview } from '@/components/cv/CVPreview';
 import { ChatPanel } from '@/components/cv/ChatPanel';
 import { RevisionHistory } from '@/components/cv/RevisionHistory';
 import { MatchScorePanel } from '@/components/cv/MatchScorePanel';
 import { MatchDebugPanel } from '@/components/cv/MatchDebugPanel';
 import { UpgradeDialog } from '@/components/dialogs/UpgradeDialog';
-import { Save, Download, History, Loader2, FileText, Edit3, Target } from 'lucide-react';
+import { TailoringModal } from '@/components/cv/TailoringModal';
+import { ActionSuggestion } from '@/components/cv/ActionCard';
+import { Save, Download, History, Loader2, FileText, Edit3, Target, Sparkles } from 'lucide-react';
 import { mockTailoredCV, mockChatMessages, mockRevisions, ChatMessage, Revision } from '@/lib/mockData';
 import { toast } from 'sonner';
-import { jobsAPI, cvAPI, matchingAPI, type Job, type MatchScore, type CVWithSections } from '@/lib/api';
+import { jobsAPI, cvAPI, matchingAPI, tailorAPI, type Job, type MatchScore, type CVWithSections } from '@/lib/api';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function TailorCV() {
@@ -33,6 +36,9 @@ export default function TailorCV() {
   const [loadingCv, setLoadingCv] = useState(false);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgradeInfo, setUpgradeInfo] = useState<any>(null);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [showTailoringModal, setShowTailoringModal] = useState(false);
+  const [acceptedSuggestions, setAcceptedSuggestions] = useState<ActionSuggestion[]>([]);
 
   useEffect(() => {
     if (!id) {
@@ -176,8 +182,61 @@ export default function TailorCV() {
     toast.success('Revision saved!');
   };
 
-  const handleExportPDF = () => {
-    toast.success('PDF export started! (This is a mock action)');
+  const handleExportPDF = async () => {
+    if (!primaryCvId || !matchScore || !cvData) {
+      toast.error('Please analyze the match first before exporting');
+      return;
+    }
+
+    try {
+      setExportingPDF(true);
+      toast.info('Generating tailored CV PDF...');
+
+      // Construct CV text from sections
+      if (!cvData.sections) {
+        toast.error('CV has not been parsed yet. Please wait for parsing to complete.');
+        return;
+      }
+
+      const sections = cvData.sections;
+      const cvText = `
+Summary:
+${sections.summary || 'N/A'}
+
+Skills:
+${sections.skills || 'N/A'}
+
+Experience:
+${sections.experience || 'N/A'}
+
+Education:
+${sections.education || 'N/A'}
+
+Certifications:
+${sections.certifications || 'N/A'}
+`.trim();
+
+      // Generate PDF using the tailor API with accepted suggestions
+      const pdfBlob = await tailorAPI.generatePDF(cvText, matchScore, 'modern', acceptedSuggestions);
+      
+      // Create download link
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Tailored_CV_${job.company}_${job.title}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('PDF exported successfully!');
+    } catch (error: any) {
+      console.error('PDF export failed:', error);
+      const message = error instanceof Error ? error.message : 'Failed to export PDF';
+      toast.error(message);
+    } finally {
+      setExportingPDF(false);
+    }
   };
 
   const handleSelectRevision = (revision: Revision) => {
@@ -227,6 +286,34 @@ export default function TailorCV() {
         upgradeInfo={upgradeInfo}
       />
 
+      {/* Tailoring Modal */}
+      {matchScore && cvData && (
+        <TailoringModal
+          open={showTailoringModal}
+          onOpenChange={setShowTailoringModal}
+          matchAnalysis={matchScore}
+          cvText={`
+Summary:
+${cvData.sections?.summary || 'N/A'}
+
+Skills:
+${cvData.sections?.skills || 'N/A'}
+
+Experience:
+${cvData.sections?.experience || 'N/A'}
+
+Education:
+${cvData.sections?.education || 'N/A'}
+
+Certifications:
+${cvData.sections?.certifications || 'N/A'}
+          `.trim()}
+          cvId={primaryCvId!}
+          jobId={id!}
+          onSuggestionsChange={setAcceptedSuggestions}
+        />
+      )}
+
       {/* Action Bar */}
       <div className="border-b border-border bg-card">
         <div className="container mx-auto px-4 py-3">
@@ -249,12 +336,32 @@ export default function TailorCV() {
                 Save Revision
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                onClick={() => setShowTailoringModal(true)}
+                disabled={!matchScore || !cvData}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Tailor CV
+              </Button>
+              <Button
                 size="sm"
                 className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
                 onClick={handleExportPDF}
+                disabled={exportingPDF || !matchScore}
               >
-                <Download className="h-4 w-4 mr-2" />
-                Export PDF
+                {exportingPDF ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export PDF
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -325,19 +432,9 @@ export default function TailorCV() {
         {/* CV Tailoring View */}
         <TabsContent value="tailor" className="mt-0">
           <div className="flex h-[calc(100vh-240px)]">
-            {/* Job Description Panel - Left (smaller in tailor view) */}
-            <div className="w-80 hidden lg:block border-r border-border overflow-y-auto">
-              <JobDescriptionPanel job={job} />
-            </div>
-
-            {/* CV Editor - Center */}
-            <div className="flex-1 border-r border-border">
-              <CVEditor content={cvContent} onChange={setCvContent} />
-            </div>
-
-            {/* Chat Panel - Right */}
-            <div className="w-96 hidden xl:block">
-              <ChatPanel messages={messages} onSendMessage={handleSendMessage} />
+            {/* CV Preview - Full Width */}
+            <div className="flex-1">
+              <CVPreview cvData={cvData} acceptedSuggestions={acceptedSuggestions} />
             </div>
 
             {/* Revision History - Slide-in Panel */}
