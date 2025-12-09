@@ -81,6 +81,10 @@ def setup_logging(loki_url: Optional[str] = None):
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
     
+    # Also configure uvicorn.access logger specifically
+    uvicorn_logger = logging.getLogger("uvicorn.access")
+    uvicorn_logger.setLevel(logging.INFO)
+    
     # Console handler (always enabled)
     console_handler = logging.StreamHandler()
     console_formatter = logging.Formatter(
@@ -107,6 +111,10 @@ def setup_logging(loki_url: Optional[str] = None):
             # Queue handler to avoid blocking
             queue_handler = QueueHandler(log_queue)
             root_logger.addHandler(queue_handler)
+            
+            # Also add queue handler to uvicorn.access logger
+            uvicorn_queue_handler = QueueHandler(log_queue)
+            uvicorn_logger.addHandler(uvicorn_queue_handler)
             
             # Start queue listener in background thread
             listener = QueueListener(log_queue, loki_handler, respect_handler_level=True)
