@@ -5,8 +5,10 @@ from app.services.queue import queue_service
 from app.services.cv_parser import cv_parser_service
 from app.utils.supabase_client import supabase
 from app.utils.usage_limiter import require_feature_dependency
+from app.middleware.metrics_helpers import track_feature_usage, track_cv_parse, track_cv_parse_error
 import hashlib
 import json
+import time
 from functools import partial
 
 router = APIRouter()
@@ -117,8 +119,12 @@ async def upload_cv(
     
     cv_id = result.data[0]["id"]
     
+    # Track feature usage
+    track_feature_usage("cv_upload", user)
+    
     # Parse CV immediately (synchronous) for better UX
     print(f"📄 Parsing CV immediately: {cv_id}")
+    start_time = time.time()
     try:
         # Update status to parsing
         supabase.table("cvs").update({
@@ -127,6 +133,10 @@ async def upload_cv(
         
         # Parse the CV
         parsed_data = await cv_parser_service.parse_cv_file(content, file.filename)
+        
+        # Track parsing duration
+        duration = time.time() - start_time
+        track_cv_parse(duration)
         
         # Save parsed sections to database
         sections_data = {
@@ -156,6 +166,10 @@ async def upload_cv(
         
     except Exception as e:
         print(f"❌ Error parsing CV {cv_id}: {str(e)}")
+        
+        # Track parsing error
+        track_cv_parse_error(type(e).__name__)
+        
         # Update CV status to error
         supabase.table("cvs").update({
             "status": "error",

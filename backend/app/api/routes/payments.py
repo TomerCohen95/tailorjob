@@ -13,6 +13,7 @@ from app.services.paypal_service import paypal_service
 from app.services.subscription_service import subscription_service
 from app.utils.usage_limiter import get_usage_info
 from app.config import settings
+from app.middleware.metrics_helpers import track_paypal_webhook
 
 
 
@@ -439,6 +440,10 @@ async def handle_paypal_webhook(
         # Get webhook body
         body = await request.body()
         webhook_event = json.loads(body)
+        
+        # Track webhook event
+        event_type = webhook_event.get('event_type', 'unknown')
+        track_paypal_webhook(event_type)
         
         # Verify webhook signature
         is_valid = paypal_service.verify_webhook_signature(

@@ -4,6 +4,7 @@ from app.api.deps import get_current_user
 from app.utils.supabase_client import supabase
 from app.services.queue import queue_service
 from app.utils.usage_limiter import require_feature_dependency
+from app.middleware.metrics_helpers import track_feature_usage
 
 router = APIRouter()
 
@@ -23,6 +24,9 @@ async def tailor_cv(
     Tailor a CV for a specific job posting
     This queues an AI job to generate a tailored version
     """
+    # Track feature usage
+    track_feature_usage("tailor_cv", current_user)
+    
     user_id = current_user["id"]
     
     # Verify CV belongs to user

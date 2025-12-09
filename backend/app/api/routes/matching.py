@@ -7,11 +7,13 @@ from app.services.cv_extractor_v5 import CVExtractorV5
 from app.config import settings
 from app.utils.supabase_client import get_supabase
 from app.utils.usage_limiter import require_feature_dependency
+from app.middleware.metrics_helpers import track_feature_usage, track_ai_match
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from openai import AsyncAzureOpenAI
 import json
+import time
 
 router = APIRouter(prefix="/matching", tags=["matching"])
 
@@ -82,6 +84,9 @@ async def analyze_match(
     3. Stores result with 7-day expiry
     4. Returns detailed match breakdown
     """
+    # Track feature usage
+    track_feature_usage("job_match", user)
+    
     supabase = get_supabase()
     
     # Check for cached match (not expired)
@@ -177,6 +182,10 @@ async def analyze_match(
     # Perform AI analysis (route to appropriate matcher version)
     # Default to v3 if no version specified
     matcher_version = "v3.0"
+    start_time = time.time()
+    tokens_used = 0
+    estimated_cost = 0.0
+    
     try:
         if settings.USE_MATCHER_V5 and cv_matcher_v5:
             print(f"🚀 Using Matcher v5.1 (Enhanced Discipline Matching)")
@@ -200,11 +209,26 @@ CERTIFICATIONS:
 """
             analysis = await cv_matcher_v5.analyze_match(cv_text, job_data)
             
+            # Extract token usage if available in response
+            if 'token_usage' in analysis:
+                tokens_used = analysis['token_usage'].get('total_tokens', 0)
+                estimated_cost = analysis.get('estimated_cost', 0.0)
+            
         else:
             # Default to v3 (AI-first with rule-based safety rails)
             print(f"🆕 Using Matcher v3.0 (AI-first with safety rails)")
             matcher_version = "v3.0"
             analysis = await cv_matcher_service_v3.analyze_match(cv_data, job_data)
+            
+            # Extract token usage if available
+            if 'token_usage' in analysis:
+                tokens_used = analysis['token_usage'].get('total_tokens', 0)
+                estimated_cost = analysis.get('estimated_cost', 0.0)
+        
+        # Track AI matching metrics
+        duration = time.time() - start_time
+        track_ai_match(duration, matcher_version, tokens_used, estimated_cost)
+        
     except Exception as e:
         print(f"❌ AI analysis failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
