@@ -9,6 +9,7 @@ from app.api.routes import cv, jobs, tailor, matching, payments
 from app.workers.cv_worker import CVWorker
 from app.middleware.metrics import setup_metrics
 from app.middleware.logging_config import setup_logging
+from app.middleware.request_logging import RequestLoggingMiddleware
 from app.services.paypal_monitor import paypal_monitor
 
 # Initialize worker
@@ -57,6 +58,9 @@ app = FastAPI(
     redoc_url="/redoc",
     redirect_slashes=False
 )
+
+# Add request logging middleware (before CORS)
+app.add_middleware(RequestLoggingMiddleware)
 
 # Add CORS middleware - this must be added LAST so it runs FIRST
 app.add_middleware(
