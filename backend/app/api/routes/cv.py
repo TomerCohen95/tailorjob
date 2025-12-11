@@ -9,7 +9,10 @@ from app.middleware.metrics_helpers import track_feature_usage, track_cv_parse, 
 import hashlib
 import json
 import time
+import logging
 from functools import partial
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -32,8 +35,11 @@ async def upload_cv(
     - Creates database record
     - Enqueues parsing job
     """
+    logger.info(f"📤 CV upload started: user={user.id}, filename={file.filename}, size={file.size}b")
+    
     # Validate file type
     if not file.filename.endswith(('.pdf', '.docx')):
+        logger.warning(f"❌ Invalid file type rejected: user={user.id}, filename={file.filename}")
         raise HTTPException(
             status_code=400,
             detail="Only PDF and DOCX files are allowed"
@@ -41,6 +47,7 @@ async def upload_cv(
     
     # Validate file size
     if file.size and file.size > 10 * 1024 * 1024:  # 10MB
+        logger.warning(f"❌ File too large rejected: user={user.id}, size={file.size}b")
         raise HTTPException(
             status_code=400,
             detail="File size must be less than 10MB"
@@ -63,17 +70,17 @@ async def upload_cv(
         # File already exists
         existing = existing_cv.data[0]
         existing_status = existing["status"]
-        print(f"📋 Duplicate detected: CV {existing['id'][:8]}... status={existing_status}")
+        logger.info(f"📋 Duplicate CV detected: user={user.id}, cv_id={existing['id']}, status={existing_status}, hash={file_hash[:12]}...")
         
         # If the existing CV hasn't been parsed yet, enqueue a parsing job
         if existing_status in ["uploaded", "error"]:
-            print(f"🔄 Re-enqueueing parse job for existing CV: {existing['id']}")
+            logger.info(f"🔄 Re-enqueueing parse job: cv_id={existing['id']}, user={user.id}")
             try:
                 job_id = await queue_service.enqueue_cv_parse(existing["id"], user.id)
-                print(f"✅ Job enqueued with ID: {job_id}")
+                logger.info(f"✅ Parse job enqueued: cv_id={existing['id']}, job_id={job_id}")
                 message = "CV already exists, re-parsing initiated"
             except Exception as e:
-                print(f"⚠️  Queue error (non-fatal): {str(e)}")
+                logger.warning(f"⚠️  Queue unavailable (non-fatal): cv_id={existing['id']}, error={str(e)}")
                 job_id = None
                 message = "CV already exists. Re-parsing will start when worker reconnects."
             
@@ -85,7 +92,7 @@ async def upload_cv(
             }
         
         # CV already parsed successfully - offer to re-parse
-        print(f"⚠️  CV already parsed. Returning duplicate response.")
+        logger.info(f"ℹ️  CV already parsed successfully: cv_id={existing['id']}, user={user.id}")
         return {
             "cv_id": existing["id"],
             "status": "duplicate",
@@ -99,11 +106,13 @@ async def upload_cv(
         }
     
     # Upload to storage (new file)
+    logger.info(f"📁 Uploading CV to storage: user={user.id}, filename={file.filename}, hash={file_hash[:12]}...")
     file_path = await storage_service.upload_cv(
         content,
         file.filename,
         user.id
     )
+    logger.info(f"✅ CV uploaded to storage: user={user.id}, path={file_path}")
     
     # Create database record with file hash and set as primary
     result = supabase.table("cvs").insert({
@@ -118,12 +127,13 @@ async def upload_cv(
     }).execute()
     
     cv_id = result.data[0]["id"]
+    logger.info(f"💾 CV record created: cv_id={cv_id}, user={user.id}, filename={file.filename}")
     
     # Track feature usage
     track_feature_usage("cv_upload", user)
     
     # Parse CV immediately (synchronous) for better UX
-    print(f"📄 Parsing CV immediately: {cv_id}")
+    logger.info(f"📄 Starting CV parsing: cv_id={cv_id}, user={user.id}")
     start_time = time.time()
     try:
         # Update status to parsing
@@ -149,14 +159,23 @@ async def upload_cv(
         }
         
         supabase.table("cv_sections").insert(sections_data).execute()
-        print(f"📝 Created CV sections")
+        
+        # Count sections
+        section_counts = {
+            'skills': len(parsed_data.get("skills", [])),
+            'experience': len(parsed_data.get("experience", [])),
+            'education': len(parsed_data.get("education", [])),
+            'certifications': len(parsed_data.get("certifications", []))
+        }
+        
+        logger.info(f"📝 CV sections extracted: cv_id={cv_id}, sections={section_counts}, duration={duration:.2f}s")
         
         # Update CV status to parsed
         supabase.table("cvs").update({
             "status": "parsed"
         }).eq("id", cv_id).execute()
         
-        print(f"✅ CV {cv_id} parsed successfully")
+        logger.info(f"✅ CV parsed successfully: cv_id={cv_id}, user={user.id}, duration={duration:.2f}s")
         
         return {
             "cv_id": cv_id,
@@ -165,7 +184,8 @@ async def upload_cv(
         }
         
     except Exception as e:
-        print(f"❌ Error parsing CV {cv_id}: {str(e)}")
+        duration = time.time() - start_time
+        logger.error(f"❌ CV parsing failed: cv_id={cv_id}, user={user.id}, error={str(e)}, duration={duration:.2f}s", exc_info=True)
         
         # Track parsing error
         track_cv_parse_error(type(e).__name__)

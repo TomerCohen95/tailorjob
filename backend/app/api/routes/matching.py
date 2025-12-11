@@ -14,6 +14,9 @@ from datetime import datetime, timedelta
 from openai import AsyncAzureOpenAI
 import json
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/matching", tags=["matching"])
 
@@ -84,6 +87,8 @@ async def analyze_match(
     3. Stores result with 7-day expiry
     4. Returns detailed match breakdown
     """
+    logger.info(f"🔍 Match analysis requested: cv_id={request.cv_id}, job_id={request.job_id}, user={user.id}")
+    
     # Track feature usage
     track_feature_usage("job_match", user)
     
@@ -101,7 +106,7 @@ async def analyze_match(
         
         if cached.data and len(cached.data) > 0:
             match = cached.data[0]
-            print(f"✅ Returning cached match score: {match['overall_score']}%")
+            logger.info(f"💾 Returning cached match: cv_id={request.cv_id}, job_id={request.job_id}, score={match['overall_score']}%, age={(datetime.utcnow() - datetime.fromisoformat(match['created_at'])).days}d")
             return MatchResponse(
                 overall_score=match['overall_score'],
                 skills_score=match.get('skills_score'),
@@ -112,7 +117,7 @@ async def analyze_match(
                 created_at=match['created_at']
             )
     except Exception as e:
-        print(f"⚠️ Error checking cache: {e}")
+        logger.warning(f"⚠️  Cache check failed (non-fatal): cv_id={request.cv_id}, job_id={request.job_id}, error={str(e)}")
         # Continue to fresh analysis if cache check fails
     
     # Fetch CV data
@@ -141,7 +146,7 @@ async def analyze_match(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error fetching CV: {e}")
+        logger.error(f"❌ Failed to fetch CV: cv_id={request.cv_id}, user={user.id}, error={str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch CV data: {str(e)}")
     
     # Fetch job data
@@ -176,10 +181,12 @@ async def analyze_match(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error fetching job: {e}")
+        logger.error(f"❌ Failed to fetch job: job_id={request.job_id}, user={user.id}, error={str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch job data: {str(e)}")
     
     # Perform AI analysis (route to appropriate matcher version)
+    logger.info(f"🤖 Starting AI match analysis: cv_id={request.cv_id}, job_id={request.job_id}")
+    
     # Default to v3 if no version specified
     matcher_version = "v3.0"
     start_time = time.time()
@@ -188,7 +195,7 @@ async def analyze_match(
     
     try:
         if settings.USE_MATCHER_V5 and cv_matcher_v5:
-            print(f"🚀 Using Matcher v5.1 (Enhanced Discipline Matching)")
+            logger.info(f"🚀 Using Matcher v5.1: cv_id={request.cv_id}, job_id={request.job_id}")
             matcher_version = "v5.1"
             # Build CV text from sections
             cv_text = f"""
@@ -216,7 +223,7 @@ CERTIFICATIONS:
             
         else:
             # Default to v3 (AI-first with rule-based safety rails)
-            print(f"🆕 Using Matcher v3.0 (AI-first with safety rails)")
+            logger.info(f"🆕 Using Matcher v3.0: cv_id={request.cv_id}, job_id={request.job_id}")
             matcher_version = "v3.0"
             analysis = await cv_matcher_service_v3.analyze_match(cv_data, job_data)
             
@@ -229,8 +236,11 @@ CERTIFICATIONS:
         duration = time.time() - start_time
         track_ai_match(duration, matcher_version, tokens_used, estimated_cost)
         
+        logger.info(f"✅ Match analysis complete: cv_id={request.cv_id}, job_id={request.job_id}, score={analysis['overall_score']}%, version={matcher_version}, tokens={tokens_used}, cost=${estimated_cost:.4f}, duration={duration:.2f}s")
+        
     except Exception as e:
-        print(f"❌ AI analysis failed: {e}")
+        duration = time.time() - start_time
+        logger.error(f"❌ AI match analysis failed: cv_id={request.cv_id}, job_id={request.job_id}, version={matcher_version}, duration={duration:.2f}s, error={str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     
     # Add matcher version to analysis
@@ -254,9 +264,9 @@ CERTIFICATIONS:
         
         # Upsert (insert or update if exists)
         supabase.table('cv_job_matches').upsert(match_record).execute()
-        print(f"💾 Match score stored successfully")
+        logger.info(f"💾 Match score cached: cv_id={request.cv_id}, job_id={request.job_id}, score={analysis['overall_score']}%, expires_in=7d")
     except Exception as e:
-        print(f"⚠️ Failed to store match score: {e}")
+        logger.warning(f"⚠️  Failed to cache match score (non-fatal): cv_id={request.cv_id}, job_id={request.job_id}, error={str(e)}")
         # Continue even if storage fails - return the analysis
     
     return MatchResponse(
