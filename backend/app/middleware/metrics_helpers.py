@@ -19,15 +19,23 @@ from functools import wraps
 from typing import Optional
 
 
-def get_user_tier(user: dict) -> str:
+def get_user_tier(user) -> str:
     """Get user's subscription tier"""
     # Check if user has active subscription
-    if user.get("subscription_tier"):
-        return user["subscription_tier"]
+    # Handle both dict and Supabase User object
+    if hasattr(user, 'id'):
+        # Supabase User object - check user_metadata
+        user_metadata = getattr(user, 'user_metadata', {}) or {}
+        if user_metadata.get("subscription_tier"):
+            return user_metadata["subscription_tier"]
+    elif isinstance(user, dict):
+        # Dict user object
+        if user.get("subscription_tier"):
+            return user["subscription_tier"]
     return "free"
 
 
-def track_feature_usage(feature: str, user: dict):
+def track_feature_usage(feature: str, user):
     """Track feature usage with user's tier"""
     tier = get_user_tier(user)
     feature_usage.labels(feature=feature, tier=tier).inc()
