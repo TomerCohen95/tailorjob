@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user
-from app.services.cv_matcher import cv_matcher_service
-from app.services.cv_matcher_v3 import cv_matcher_service_v3
 from app.services.cv_matcher_v5 import CVMatcherV5
 from app.services.cv_extractor_v5 import CVExtractorV5
 from app.config import settings
@@ -20,10 +18,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/matching", tags=["matching"])
 
-# Initialize v5.0 services (if enabled)
+# Initialize v5.0 services (required when enabled)
 cv_matcher_v5 = None
 if settings.USE_MATCHER_V5:
+    # Validate required config upfront
+    if not settings.AZURE_OPENAI_ENDPOINT:
+        logger.error("❌ USE_MATCHER_V5=true but AZURE_OPENAI_ENDPOINT is not configured")
+        raise ValueError("AZURE_OPENAI_ENDPOINT required when USE_MATCHER_V5=true")
+    if not settings.AZURE_OPENAI_KEY:
+        logger.error("❌ USE_MATCHER_V5=true but AZURE_OPENAI_KEY is not configured")
+        raise ValueError("AZURE_OPENAI_KEY required when USE_MATCHER_V5=true")
+    
     try:
+        logger.info(f"🔧 Initializing Matcher v5.1: endpoint={settings.AZURE_OPENAI_ENDPOINT}, mini={settings.AZURE_OPENAI_DEPLOYMENT_MINI}, gpt4={settings.AZURE_OPENAI_DEPLOYMENT_GPT4}")
+        
         # Create Azure OpenAI clients
         mini_client = AsyncAzureOpenAI(
             api_key=settings.AZURE_OPENAI_KEY,
@@ -48,9 +56,12 @@ if settings.USE_MATCHER_V5:
             gpt4_client=gpt4_client,
             gpt4_deployment=settings.AZURE_OPENAI_DEPLOYMENT_GPT4
         )
+        logger.info("✅ Matcher v5.1 initialized successfully")
     except Exception as e:
-        print(f"⚠️ Failed to initialize v5.0 matcher: {e}")
-        cv_matcher_v5 = None
+        logger.error(f"❌ Failed to initialize v5.0 matcher: {e}", exc_info=True)
+        raise RuntimeError(f"Matcher v5 initialization failed: {e}") from e
+else:
+    logger.info("ℹ️  Matcher v5 disabled (USE_MATCHER_V5=false)")
 
 
 class MatchRequest(BaseModel):
@@ -194,11 +205,19 @@ async def analyze_match(
     estimated_cost = 0.0
     
     try:
-        if settings.USE_MATCHER_V5 and cv_matcher_v5:
-            logger.info(f"🚀 Using Matcher v5.1: cv_id={request.cv_id}, job_id={request.job_id}")
-            matcher_version = "v5.1"
-            # Build CV text from sections
-            cv_text = f"""
+        # v5 is now the only supported matcher
+        if not cv_matcher_v5:
+            logger.error(f"❌ Matcher v5 not available: USE_MATCHER_V5={settings.USE_MATCHER_V5}")
+            raise HTTPException(
+                status_code=503,
+                detail="CV matching service not available. Please contact support."
+            )
+        
+        logger.info(f"🚀 Using Matcher v5.1: cv_id={request.cv_id}, job_id={request.job_id}")
+        matcher_version = "v5.1"
+        
+        # Build CV text from sections
+        cv_text = f"""
 SUMMARY:
 {cv_data.get('summary', 'Not provided')}
 
@@ -214,23 +233,12 @@ EDUCATION:
 CERTIFICATIONS:
 {cv_data.get('certifications', 'Not provided')}
 """
-            analysis = await cv_matcher_v5.analyze_match(cv_text, job_data)
-            
-            # Extract token usage if available in response
-            if 'token_usage' in analysis:
-                tokens_used = analysis['token_usage'].get('total_tokens', 0)
-                estimated_cost = analysis.get('estimated_cost', 0.0)
-            
-        else:
-            # Default to v3 (AI-first with rule-based safety rails)
-            logger.info(f"🆕 Using Matcher v3.0: cv_id={request.cv_id}, job_id={request.job_id}")
-            matcher_version = "v3.0"
-            analysis = await cv_matcher_service_v3.analyze_match(cv_data, job_data)
-            
-            # Extract token usage if available
-            if 'token_usage' in analysis:
-                tokens_used = analysis['token_usage'].get('total_tokens', 0)
-                estimated_cost = analysis.get('estimated_cost', 0.0)
+        analysis = await cv_matcher_v5.analyze_match(cv_text, job_data)
+        
+        # Extract token usage if available in response
+        if 'token_usage' in analysis:
+            tokens_used = analysis['token_usage'].get('total_tokens', 0)
+            estimated_cost = analysis.get('estimated_cost', 0.0)
         
         # Track AI matching metrics
         duration = time.time() - start_time
